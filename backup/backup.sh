@@ -50,8 +50,8 @@ function show_usage() {
           Do not backup contents of the mailboxes
         filters
           Do not backup sieve filters
-        settings
-          Do not backup personal settings
+        aliases
+          Do not backup email aliases
         signatures
           Do not backup registred signatures
 
@@ -69,25 +69,31 @@ function log_info() { log "[INFO] ${1}" }
 function log_warn() { log "[WARN] ${1}" }
 function log_err() { log "[ERR] ${1}" }
 
-function trap_exit_error() {
-  log_err "There was an error on line ${1}"
-  log_err "Backup aborted"
+function trap_exit() {
+  local status=$?
+  local error=${1}
 
-  trap_cleaning
-  exit 1
+  trap - EXIT ERR INT
+
+  if [ "${status}" -ne 0 ]; then
+    log_err "There was an error on line ${1}"
+    log_err "Backup aborted"
+
+    cleanFailedBackup
+  fi
+
+  exit "${status}"
 }
 
-function trap_cleaning() {
-  trap - ERR INT
-
-  if [ ! -z "${_backuping_account}" -a -e "${_backuping_account}" ]
+function cleanFailedBackup() {
+  if [ ! -z "${_backuping_account}" -a -d "${_backups_path}/accounts/${_backuping_account}" ]; then
     log_debug "Removing failed account backup <${_backuping_account}>"
     rm -ir "${_backups_path}/accounts/${_backuping_account}"
   fi
 }
 
 function execZimbraCmd() {
-  local cmd="${1:-}"
+  local cmd="${1}"
   export PATH="${PATH}:${_zimbra_main_path}/bin:${_zimbra_main_path}/libexec/"
   su "${_zimbra_user}" -c "${cmd}"
 }
@@ -114,22 +120,28 @@ function zimbraGetLists() {
 }
 
 function zimbraGetListMembers() {
-  local list_email="${1:-}"
+  local list_email="${1}"
   execZimbraCmd "zmprov --ldap getDistributionListMembership '${list_email}'"
 }
 
 function zimbraGetAccountSettings() {
-  local email="${1:-}"
+  local email="${1}"
   execZimbraCmd "zmprov --ldap getAccount '${email}'"
 }
 
+function zimbraGetAliases() {
+  local email="${1}"
+  local settings="${2}"
+  # TODO
+}
+
 function zimbraGetFilters() {
-  local email="${1:-}"
+  local email="${1}"
   execZimbraCmd "zmprov getAccount '${email}' zimbraMailSieveScript" | sed '1d;s/^zimbraMailSieveScript: //'
 }
 
 function zimbraGetSignatures() {
-  local email="${1:-}"
+  local email="${1}"
   execZimbraCmd "zmprov getSignatures '${email}'"
 }
 
@@ -140,32 +152,37 @@ function zimbraGetSignatures() {
 
 function zimbraBackupAdmins() {
   local backup_path="${_backups_path}/admin"
-  install -o "${_zimbra_user}" -g "${_zimbra_group}" -d "${backup_path}"
+  local backup_file="${backup_path}/admin_accounts"
 
-  zimbraGetAdminAccounts > "${backup_path}/admin_accounts"
+  install -o "${_zimbra_user}" -g "${_zimbra_group}" -d "${backup_path}"
+  zimbraGetAdminAccounts > "${backup_file}"
 }
 
 function zimbraBackupDomains() {
   local backup_path="${_backups_path}/admin"
-  install -o "${_zimbra_user}" -g "${_zimbra_group}" -d "${backup_path}"
+  local backup_file="${backup_path}/domains"
 
-  zimbraGetDomains > "${backup_path}/domains"
+  install -o "${_zimbra_user}" -g "${_zimbra_group}" -d "${backup_path}"
+  zimbraGetDomains > "${backup_file}"
 }
 
 function zimbraBackupLists() {
   local backup_path="${_backups_path}/lists"
   install -o "${_zimbra_user}" -g "${_zimbra_group}" -d "${backup_path}"
 
-  for email in $(zimbraGetLists); do
-    log_debug "Get members of the list <${email}>"
-    zimbraGetListMembers "${email}" | grep @ | grep -v '^#' > "${backup_path}/${email}"
+  for list_email in $(zimbraGetLists); do
+    local backup_file="${backup_path}/${list_email}"
+
+    log_debug "Get members of the list <${list_email}>"
+    zimbraGetListMembers "${list_email}" | grep @ | grep -v '^#' > "${backup_file}"
   done
 }
 
 function zimbraBackupAccountData() {
-  local email="${1:-}"
+  local email="${1}"
   local filter_query=${_backups_nobackup_paths// / and not under:}
   local backup_path="${_backups_path}/accounts/${email}"
+  local backup_file="${backup_path}/data.tgz"
 
   install -o "${_zimbra_user}" -g "${_zimbra_group}" -d "${backup_path}"
 
@@ -174,31 +191,41 @@ function zimbraBackupAccountData() {
   fi
 
   log_debug "Filter query: ${filter_query}"
-  execZimbraCmd "zmmailbox --zadmin --mailbox '${email}' getRestURL '//?fmt=tgz${filter_query}' > '${backup_path}/data.tgz'"
+  execZimbraCmd "zmmailbox --zadmin --mailbox '${email}' getRestURL '//?fmt=tgz${filter_query}' > '${backup_file}'"
 }
 
 function zimbraBackupAccountSettings() {
-  local email="${1:-}"
-
+  local email="${1}"
   local backup_path="${_backups_path}/accounts/${email}"
-  install -o "${_zimbra_user}" -g "${_zimbra_group}" -d "${backup_path}"
+  local backup_file="${backup_path}/settings"
 
-  zimbraGetAccountSettings "${email}" > "${backup_path}/settings"
+  install -o "${_zimbra_user}" -g "${_zimbra_group}" -d "${backup_path}"
+  zimbraGetAccountSettings "${email}" > "${backup_file}"
+}
+
+function zimbraBackupAccountAliases() {
+  local email="${1}"
+  local backup_path="${_backups_path}/accounts/${email}"
+  local backup_file="${backup_path}/aliases"
+  local settings_file="${backup_path}/settings"
+
+  install -o "${_zimbra_user}" -g "${_zimbra_group}" -d "${backup_path}"
+  zimbraGetAliases "${email}" "${settings_file}" > "${backup_file}"
 }
 
 function zimbraBackupAccountFilters() {
-  local email="${1:-}"
-
+  local email="${1}"
   local backup_path="${_backups_path}/accounts/${email}"
-  install -o "${_zimbra_user}" -g "${_zimbra_group}" -d "${backup_path}"
+  local backup_file="${backup_path}/filters"
 
-  zimbraGetFilters "${email}" > "${backup_path}/filters"
+  install -o "${_zimbra_user}" -g "${_zimbra_group}" -d "${backup_path}"
+  zimbraGetFilters "${email}" > "${backup_file}"
 }
 
 function zimbraBackupAccountSignatures() {
-  local email="${1:-}"
-
+  local email="${1}"
   local backup_path="${_backups_path}/accounts/${email}/signatures"
+
   install -o "${_zimbra_user}" -g "${_zimbra_group}" -d "${backup_path}"
 
   # Save signatures individually in files 1, 2, 3, etc
@@ -209,7 +236,7 @@ function zimbraBackupAccountSignatures() {
     local extension='txt'
 
     # Save the name of the signature from the Zimbra field
-    local name=$((grep '^zimbraSignatureName: ' "${signature_file}" || true) | sed 's/^zimbraSignatureName: //')
+    local name=$((grep '^zimbraSignatureName: ' "${tmp_backup_file}" || true) | sed 's/^zimbraSignatureName: //')
 
     # A signature with no name is possible with older versions of Zimbra
     if [ -z "${name}" ]; then
@@ -217,21 +244,23 @@ function zimbraBackupAccountSignatures() {
     else
 
       # A field zimbraPrefMailSignatureHTML instead of zimbraPrefMailSignature means an HTML signature
-      if grep -q zimbraPrefMailSignatureHTML "${signature_file}"; then
+      if grep -q zimbraPrefMailSignatureHTML "${tmp_backup_file}"; then
         extension=html
       fi
 
+      local backup_file="${tmp_backup_file}.${extension}"
+
       # Remove the field name prefixing the signature
-      sed 's/zimbraPrefMailSignature\(HTML\)\?: //' -i "${signature_file}"
+      sed 's/zimbraPrefMailSignature\(HTML\)\?: //' -i "${tmp_backup_file}"
 
       # Remove every line corresponding to a Zimbra field and not the signature content itself
-      grep -iv '^zimbra[a-z]\+: ' "${signature_file}" > "${signature_file}.${extension}"
+      grep -iv '^zimbra[a-z]\+: ' "${tmp_backup_file}" > "${backup_file}"
 
       # Remove the last empty line and rename the file to indicate if the signature is html or plain text
-      sed '${ /^$/d }' -i "${signature_file}.${extension}"
+      sed '${ /^$/d }' -i "${backup_file}"
     fi
 
-    rm "${signature_file}"
+    rm "${tmp_backup_file}"
   done
 }
 
@@ -252,7 +281,7 @@ _exclude_domains=false
 _exclude_lists=false
 _exclude_data=false
 _exclude_filters=false
-_exclude_settings=false
+_exclude_aliases=false
 _exclude_signatures=false
 
 
@@ -274,7 +303,7 @@ while getopts 'm:s:p:u:g:b:e:h' opt; do
          lists) _exclude_lists=true ;;
          data) _exclude_data=true ;;
          filters) _exclude_filters=true ;;
-         settings) _exclude_settings=true ;;
+         aliases) _exclude_aliases=true ;;
          signatures) _exclude_signatures=true ;;
          *) log_err "Value <${OPTARG}> not supported by option -e"; show_usage ;;
        esac ;;
@@ -283,13 +312,13 @@ while getopts 'm:s:p:u:g:b:e:h' opt; do
   esac
 done
 
-if ! [ -r "${_zimbra_main_path}" ]; then
-  log_err "Zimbra path <${_zimbra_main_path}> doesn't exist or is not readable"
+if ! [ -d "${_zimbra_main_path}" -a -x "${_zimbra_main_path}" ]; then
+  log_err "Zimbra path <${_zimbra_main_path}> doesn't exist, is not a directory or is not executable"
   exit 1
 fi
 
-if ! [ -w "${_backups_path}" ]; then
-  log_err "Backups path <${_backups_path}> doesn't exist or is not writable"
+if ! [ -d "${_backups_path}" -a -x "${_backups_path}" -a -w "${_backups_path}" ]; then
+  log_err "Backups path <${_backups_path}> doesn't exist, is not a directory or is not writable"
   exit 1
 fi
 
@@ -298,8 +327,8 @@ fi
 ### SCRIPT ###
 ##############
 
-trap 'trap_exit_error $LINENO' ERR
-trap trap_cleaning INT
+trap 'trap_exit $LINENO' EXIT ERR
+trap 'exit 1' INT
 
 ${_exclude_admins} || {
   log_info "Backuping admin list"
@@ -329,9 +358,12 @@ for email in ${accounts}; do
     log_warn "Skipping <${email}> account (folder already exists)"
   else
 
-    ${_exclude_settings} || {
-      log_info "Backuping settings from <${email}>"
-      zimbraBackupAccountSettings "${email}"
+    log_info "Backuping settings from <${email}>"
+    zimbraBackupAccountSettings "${email}"
+
+    ${_exclude_aliases} || {
+      log_info "Backuping aliases from <${email}>"
+      zimbraBackupAccountAliases "${email}"
     }
 
     ${_exclude_filters} || {
