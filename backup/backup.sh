@@ -1,5 +1,6 @@
 #!/bin/bash
 # Julien Vaubourg <ju.vg> (2019)
+# https://github.com/jvaubourg/zimbra-scripts
 
 set -o errtrace
 set -o pipefail
@@ -13,45 +14,49 @@ set -o nounset
 function show_usage() {
   cat <<USAGE
   MAILBOXES
-    -m | --mailbox email
+    -m email
       Email of the account to backup
       Default: All accounts
-    -e|--data-exclusions paths
-      Paths of folders to exclude from the accounts' data
+    -s paths
+      Paths of folders to skip when backuping data from accounts
       Default: ${_backups_nobackup_paths}
 
   ENVIRONMENT
-    -b|--backups-path path
+    -b path
       Where to save the backups
       Default: ${_backups_path}
-    -p|--zimbra-path path
+    -p path
       Main path of the Zimbra installation
       Default: ${_zimbra_main_path}
-    -u|--zimbra-user user
-      Zimbra user
+    -u user
+      Zimbra UNIX user
       Default: ${_zimbra_user}
-    -g|--zimbra-group group
-      Zimbra group
+    -g group
+      Zimbra UNIX group
       Default: ${_zimbra_group}
 
-  RESTRICTIONS
-    --no-admins
-      Do not backup the list of admin accounts
-    --no-domains
-      Do not backup domains
-    --no-lists
-      Do not backup mailing lists
-    --no-data
-      Do not backup contents of the mailboxes
-    --no-filters
-      Do not backup sieve filters
-    --no-settings
-      Do not backup personal settings
-    --no-signatures
-      Do not backup registred signatures
+  EXCLUSIONS
+    -e TYPE
+      Do a partial backup, by excluding some settings/data.
+
+      TYPE can be:
+        admins
+          Do not backup the list of admin accounts
+        domains
+          Do not backup domains
+        lists
+          Do not backup mailing lists
+        data
+          Do not backup contents of the mailboxes
+        filters
+          Do not backup sieve filters
+        settings
+          Do not backup personal settings
+        signatures
+          Do not backup registred signatures
 
   OTHERS
-    -h|--help
+    -h
       Show this help
 USAGE
 
@@ -152,7 +157,7 @@ function zimbraBackupLists() {
   install -o "${_zimbra_user}" -g "${_zimbra_group}" -d "${backup_path}"
 
   for email in $(zimbraGetLists); do
-    log_info "Getting members of the list <${email}>"
+    log_debug "Get members of the list <${email}>"
     zimbraGetListMembers "${email}" | grep @ | grep -v '^#' > "${backup_path}/${email}"
   done
 }
@@ -241,44 +246,41 @@ _zimbra_main_path='/opt/zimbra'
 _backups_path='/tmp/backups'
 _backups_nobackup_paths='/Inbox/nobackup /Briefcase/nobackup'
 _backuping_account=
-_arg_mailbox=
-_arg_noadmins=false
-_arg_nodomains=false
-_arg_nolists=false
-_arg_nodata=false
-_arg_nofilters=false
-_arg_nosettings=false
-_arg_nosignatures=false
+_account_to_backup=
+_exclude_admins=false
+_exclude_domains=false
+_exclude_lists=false
+_exclude_data=false
+_exclude_filters=false
+_exclude_settings=false
+_exclude_signatures=false
 
 
-##############
-### SCRIPT ###
-##############
+###############
+### OPTIONS ###
+###############
 
-trap 'trap_exit_error $LINENO' ERR
-trap trap_cleaning INT
-options=$(getopt -o m:,e:,p:,u:,g:,b:,h: -l mailbox:,no-admins,no-domains,no-lists,no-data,no-filters,no-settings,no-signatures,data-exclusions,zimbra-path,zimbra-user,zimbra-group,backups-path,help -- "${@}") || exit 1
-set -- ${options}
-
-while [ "${#}" -gt 0 ]; do
-  case ${1} in
-    -m|--mailbox) _arg_mailbox="${2}"; shift ;;
-    --no-admins) _arg_noadmins=true ;;
-    --no-domains) _arg_nodomains=true ;;
-    --no-lists) _arg_nolists=true ;;
-    --no-data) _arg_nodata=true ;;
-    --no-filters) _arg_nofilters=true ;;
-    --no-settings) _arg_nosettings=true ;;
-    --no-signatures) _arg_nosignatures=true ;;
-    -e|--data-exclusions) _backups_nobackup_paths="${2}"; shift ;;
-    -p|--zimbra-path) _zimbra_main_path="${2}"; shift ;;
-    -u|--zimbra-user) _zimbra_user="${2}"; shift ;;
-    -g|--zimbra-group) _zimbra_group="${2}"; shift ;;
-    -b|--backups-path) _backups_path="${2}"; shift ;;
-    -h|--help) show_usage ;;
-    (-*) log_err "Unrecognized option <${1}>"; show_usage ;;
-    (*) break ;;
-  esac; shift
+while getopts 'm:s:p:u:g:b:e:h' opt; do
+  case "${opt}" in
+    m) _account_to_backup="${OPTARG}" ;;
+    s) _backups_nobackup_paths="${OPTARG}" ;;
+    p) _zimbra_main_path="${OPTARG}" ;;
+    u) _zimbra_user="${OPTARG}" ;;
+    g) _zimbra_group="${OPTARG}" ;;
+    b) _backups_path="${OPTARG}" ;;
+    e) case "${OPTARG}" in
+         admins) _exclude_admins=true ;;
+         domains) _exclude_domains=true ;;
+         lists) _exclude_lists=true ;;
+         data) _exclude_data=true ;;
+         filters) _exclude_filters=true ;;
+         settings) _exclude_settings=true ;;
+         signatures) _exclude_signatures=true ;;
+         *) log_err "Value <${OPTARG}> not supported by option -e"; show_usage ;;
+       esac ;;
+    h) show_usage ;;
+    \?) exit_usage ;;
+  esac
 done
 
 if ! [ -r "${_zimbra_main_path}" ]; then
@@ -291,22 +293,30 @@ if ! [ -w "${_backups_path}" ]; then
   exit 1
 fi
 
-${_arg_noadmins} || {
+
+##############
+### SCRIPT ###
+##############
+
+trap 'trap_exit_error $LINENO' ERR
+trap trap_cleaning INT
+
+${_exclude_admins} || {
   log_info "Backuping admin list"
   zimbraBackupAdmins
 }
 
-${_arg_nodomains} || {
+${_exclude_domains} || {
   log_info "Backuping domains"
   zimbraBackupDomains
 }
 
-${_arg_nolists} || {
+${_exclude_lists} || {
   log_info "Backuping mailing lists"
   zimbraBackupLists
 }
 
-accounts="${_arg_mailbox}"
+accounts="${_account_to_backup}"
 
 if [ -z "${accounts}" ]; then
   accounts=$(zimbraGetAccounts)
@@ -319,22 +329,22 @@ for email in ${accounts}; do
     log_warn "Skipping <${email}> account (folder already exists)"
   else
 
-    ${_arg_nosettings} || {
+    ${_exclude_settings} || {
       log_info "Backuping settings from <${email}>"
       zimbraBackupAccountSettings "${email}"
     }
 
-    ${_arg_nofilters} || {
+    ${_exclude_filters} || {
       log_info "Backuping filters from <${email}>"
       zimbraBackupAccountFilters "${email}"
     }
 
-    ${_arg_nosignatures} || {
+    ${_exclude_signatures} || {
       log_info "Backuping signatures from <${email}>"
       zimbraBackupAccountSignatures "${email}"
     }
 
-    ${_arg_nodata} || {
+    ${_exclude_data} || {
       log_info "Backuping data from <${email}>"
       zimbraBackupAccountData "${email}"
     }
