@@ -358,9 +358,9 @@ _exclude_signatures=false
 while getopts 'm:p:u:b:e:d:h' opt; do
   case "${opt}" in
     m) _account_to_restore="${OPTARG}" ;;
-    p) _zimbra_main_path="${OPTARG}" ;;
+    p) _zimbra_main_path="${OPTARG%/}" ;;
     u) _zimbra_user="${OPTARG}" ;;
-    b) _backups_path="${OPTARG}" ;;
+    b) _backups_path="${OPTARG%/}" ;;
     e) for subopt in ${OPTARG}; do
          case "${subopt}" in
            aliases) _exclude_aliases=true ;;

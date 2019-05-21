@@ -228,10 +228,10 @@ function zimbraBackupAccountData() {
 
     # Zimbra fails if a non-existing folder is mentioned in the filter query (even with a "not under")
     for path in ${_backups_exclude_paths}; do
-      if echo "${folders}" | grep -q "^${path%/}\$"; then
-        filter_query="${filter_query} and not under:${path%/}"
+      if echo "${folders}" | grep -q "^${path}\$"; then
+        filter_query="${filter_query} and not under:${path}"
       else
-        log_info "Path <${path%/}> doesn't exist for <$email>"
+        log_info "Path <${path}> doesn't exist for <$email>"
       fi
     done
 
@@ -343,11 +343,11 @@ _exclude_signatures=false
 while getopts 'm:s:p:u:g:b:e:d:h' opt; do
   case "${opt}" in
     m) _account_to_backup="${OPTARG}" ;;
-    s) _backups_exclude_paths=$(echo ${_backups_exclude_paths} ${OPTARG}) ;;
-    p) _zimbra_main_path="${OPTARG}" ;;
+    s) _backups_exclude_paths=$(echo ${_backups_exclude_paths} ${OPTARG%/}) ;;
+    p) _zimbra_main_path="${OPTARG%/}" ;;
     u) _zimbra_user="${OPTARG}" ;;
     g) _zimbra_group="${OPTARG}" ;;
-    b) _backups_path="${OPTARG}" ;;
+    b) _backups_path="${OPTARG%/}" ;;
     e) for subopt in ${OPTARG}; do
          case "${subopt}" in
            admins) _exclude_admins=true ;;
