@@ -11,7 +11,6 @@ set -o nounset
 ## HELPERS ##
 #############
 
-while getopts 'm:p:u:d:b:e:h' opt; do
 function show_usage() {
   cat <<USAGE
   MAILBOXES
@@ -31,10 +30,13 @@ function show_usage() {
       Default: ${_zimbra_user}
 
   EXCLUSIONS
-    -e TYPE
+    -e ASSET
       Do a partial restoration, by excluding some settings/data.
+      Repeat this option as many times as necessary to exclude more than only one asset.
+      Default: None
+      Example: -e domains -e data
 
-      TYPE can be:
+      ASSET can be:
         aliases
           Do not backup email aliases
         domains
@@ -51,6 +53,17 @@ function show_usage() {
           Do not backup registred signatures
 
   OTHERS
+    -d LEVEL
+      Debug mode
+      Default: Disabled
+
+      LEVEL can be:
+        1
+          Show debug messages
+        2
+          Show level 1 information plus Zimbra commands
+        3
+          Show level 2 information plus Bash commands (xtrace)
     -h
       Show this help
 USAGE
@@ -59,7 +72,7 @@ USAGE
 }
 
 function log() { echo "$(date +'%F %R'): ${1}" }
-function log_debug() { log "[DEBUG] ${1}" }
+function log_debug() { [ "${_debug_mode}" -ge 1 ] && log "[DEBUG] ${1}" }
 function log_info() { log "[INFO] ${1}" }
 function log_warn() { log "[WARN] ${1}" }
 function log_err() { log "[ERR] ${1}" }
@@ -75,6 +88,8 @@ function trap_exit() {
     log_err "Restoration aborted"
 
     cleanFailedRestoration
+  else
+    log_info "Restoration done"
   fi
 
   exit "${status}"
@@ -90,19 +105,25 @@ function cleanFailedRestoration() {
 function execZimbraCmd() {
   local cmd="${1}"
   export PATH="${PATH}:${_zimbra_main_path}/bin:${_zimbra_main_path}/libexec/"
+
+  if [ "${_debug_mode}" -ge 2 ]; then
+    log_debug "CMD: ${cmd}"
+  fi
+
   su "${_zimbra_user}" -c "${cmd}"
 }
 
 function extractFromSettings() {
-  local backup_file="${1}"
+  local email="${1}"
   local field="${2}"
+  local settings_file="${_backups_path}/accounts/${email}/settings"
 
-  if ! [ -f "${backup_file}" -a -r "${backup_file}" ]; then
-    log_err "File <${backup_file}> doesn't exist, is not a regular file or is not readable or reachable"
+  if ! [ -f "${settings_file}" -a -r "${settings_file}" ]; then
+    log_err "File <${settings_file}> doesn't exist, is not a regular file or is not readable or reachable"
     exit 1
   fi
 
-  local value=$((grep '^${field}:' "${backup_file}" || true) | sed "s/^${field}: //")
+  local value=$((grep '^${field}:' "${settings_file}" || true) | sed "s/^${field}: //")
 
   echo -n "${value}"
 }
@@ -154,7 +175,7 @@ function zimbraAddAccount() {
   local givenName="${3}"
   local displayName="${4}"
   local hash_password="${5}"
-  local tmp_password="${RANDOM}${RANDOM}"
+  local tmp_password="${RANDOM}"
 
   execZimbraCmd "zmprov createAccount '${email}' '${tmp_password}' cn '${cn}' displayName '${displayName}' givenName '${givenName}' zimbraPrefFromDisplay '${displayName}'"
   execZimbraCmd "zmprov modifyAccount '${email}' userPassword '${hash_password}'"
@@ -197,18 +218,18 @@ function zimbraRestoreDomains() {
     if [ "${domain}" != "${_zimbra_install_domain}" ]; then
       log_debug "Creating domain <${domain}>"
       execZimbraCmd "zmprov createDomain '${domain}' zimbraAuthMech zimbra"
+    else
+      log_debug "Skip domain creation for <$domain>"
     fi
   done < "${backup_file}"
 }
 
 function zimbraRestoreAccount() {
   local email="${1}"
-  local backup_path="${_backups_path}/accounts/${email}"
-  local backup_file="${backup_path}/settings"
-  local cn=$(extractFromSettings "${backup_file}" cn)
-  local givenName=$(extractFromSettings "${backup_file}" givenName)
-  local displayName=$(extractFromSettings "${backup_file}" displayName)
-  local userPassword=$(extractFromSettings "${backup_file}" userPassword)
+  local cn=$(extractFromSettings "${email}" cn)
+  local givenName=$(extractFromSettings "${email}" givenName)
+  local displayName=$(extractFromSettings "${email}" displayName)
+  local userPassword=$(extractFromSettings "${email}" userPassword)
 
   if [ "${email}" != "admin@${_zimbra_install_domain}" ]; then
     zimbraAddAccount "${email}" "${cn}" "${givenName}" "${displayName}" "${userPassword}"
@@ -251,15 +272,15 @@ function zimbraRestoreLists() {
     local backup_file="${backup_path}/${list_email}"
 
     if ! [ -f "${backup_file}" -a -r "${backup_file}" ]; then
-      log_err "File <${backup_file}> doesn't exist, is not a regular file or is not regular or reachable"
+      log_err "File <${backup_file}> doesn't exist, is not a regular file or is not readable or reachable"
       exit 1
     fi
 
     log_debug "Create mailing list <${list_email}>"
     zimbraAddList "${list_email}"
 
-    log_debug "Add members to the list <${list_email}>"
     while read member_email; do
+      log_debug "Add <${member_email}> to the list <${list_email}>"
       zimbraAddListMember "${list_email}" "${member_email}"
     done < "${backup_file}"
   done
@@ -268,16 +289,15 @@ function zimbraRestoreLists() {
 function zimbraRestoreAccountAliases() {
   local email="${1}"
   local backup_path="${_backups_path}/accounts/${email}"
-  local backup_file="${_backups_path}/settings"
-  local aliases=$(extractFromSettings "${backup_file}" zimbraMailAlias)
+  local backup_file="${backup_path}/aliases"
 
-  for alias in ${aliases}; do
+  while read alias; do
     if [ "${alias}" != "root@${_zimbra_install_domain}" -a "${alias}" != "postmaster@${_zimbra_install_domain}" ]; then
       zimbraAddAlias "${email}" "${alias}"
     else
       log_debug "Skip alias creation for <${email}>"
     fi
-  done
+  done < "${backup_file}"
 }
 
 function zimbraRestoreAccountSignatures() {
@@ -305,6 +325,7 @@ function zimbraRestoreAccountSignatures() {
       type=html
     fi
 
+    log_debug "Create signature named <${name}> (<${type}>) for <${email}>"
     zimbraCreateSignature "${email}" "${name}" "${type}" "${content}"
   done
 }
@@ -314,11 +335,12 @@ function zimbraRestoreAccountSignatures() {
 ### GLOBAL VARIABLES ###
 ########################
 
-_restoring_account=
+_debug_mode=0
 _zimbra_user='zimbra'
 _zimbra_main_path='/opt/zimbra'
-_zimbra_install_domain='choca.pics'
+_zimbra_install_domain=
 _backups_path='/tmp/backups'
+_restoring_account=
 _account_to_restore=
 _exclude_aliases=false
 _exclude_domains=false
@@ -333,26 +355,33 @@ _exclude_signatures=false
 ### OPTIONS ###
 ###############
 
-while getopts 'm:p:u:b:e:h' opt; do
+while getopts 'm:p:u:b:e:d:h' opt; do
   case "${opt}" in
     m) _account_to_restore="${OPTARG}" ;;
     p) _zimbra_main_path="${OPTARG}" ;;
     u) _zimbra_user="${OPTARG}" ;;
     b) _backups_path="${OPTARG}" ;;
-    e) case "${OPTARG}" in
-         aliases) _exclude_aliases=true ;;
-         domains) _exclude_domains=true ;;
-         lists) _exclude_lists=true ;;
-         data) _exclude_data=true ;;
-         filters) _exclude_filters=true ;;
-         settings) _exclude_settings=true ;;
-         signatures) _exclude_signatures=true ;;
-         *) log_err "Value <${OPTARG}> not supported by option -e"; show_usage ;;
-       esac ;;
+    e) for subopt in ${OPTARG}; do
+         case "${subopt}" in
+           aliases) _exclude_aliases=true ;;
+           domains) _exclude_domains=true ;;
+           lists) _exclude_lists=true ;;
+           data) _exclude_data=true ;;
+           filters) _exclude_filters=true ;;
+           settings) _exclude_settings=true ;;
+           signatures) _exclude_signatures=true ;;
+           *) log_err "Value <${OPTARG}> not supported by option -e"; show_usage ;;
+         esac ;;
+       done
     h) show_usage ;;
+    d) _debug_mode="${OPTARG}" ;;
     \?) exit_usage ;;
   esac
 done
+
+if [ "${_debug_mode}" -ge 3 ]; then
+  set -o xtrace
+fi
 
 if ! [ -d "${_zimbra_main_path}" -a -x "${_zimbra_main_path}" ]; then
   log_err "Zimbra path <${_zimbra_main_path}> doesn't exist, is not a directory or is not executable"
@@ -397,14 +426,14 @@ for email in ${accounts}; do
     zimbraRestoreAccountAliases "${email}"
   }
 
-  ${_exclude_signatures} || {
-    log_info "Restoring signatures to <${email}>"
-    zimbraRestoreAccountSignatures "${email}"
-  }
-
   ${_exclude_filters} || {
     log_info "Restoring filters to <${email}>"
     zimbraRestoreAccountFilters "${email}"
+  }
+
+  ${_exclude_signatures} || {
+    log_info "Restoring signatures to <${email}>"
+    zimbraRestoreAccountSignatures "${email}"
   }
 
   ${_exclude_data} || {

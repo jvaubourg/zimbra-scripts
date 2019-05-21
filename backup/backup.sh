@@ -17,9 +17,11 @@ function show_usage() {
     -m email
       Email of the account to backup
       Default: All accounts
-    -s paths
-      Paths of folders to skip when backuping data from accounts
-      Default: ${_backups_nobackup_paths}
+    -s path
+      Path of a folder to skip when backuping data from accounts
+      Repeat this option as many times as necessary to exclude more than only one folder
+      Default: None
+      Example: -e /Inbox/lists -e /Briefcase/films
 
   ENVIRONMENT
     -b path
@@ -36,10 +38,13 @@ function show_usage() {
       Default: ${_zimbra_group}
 
   EXCLUSIONS
-    -e TYPE
-      Do a partial backup, by excluding some settings/data.
+    -e ASSET
+      Do a partial backup, by excluding some settings/data
+      Repeat this option as many times as necessary to exclude more than only one asset
+      Default: None
+      Example: -e domains -e data
 
-      TYPE can be:
+      ASSET can be:
         admins
           Do not backup the list of admin accounts
         domains
@@ -56,6 +61,17 @@ function show_usage() {
           Do not backup registred signatures
 
   OTHERS
+    -d LEVEL
+      Debug mode
+      Default: Disabled
+
+      LEVEL can be:
+        1
+          Show debug messages
+        2
+          Show level 1 information plus Zimbra commands
+        3
+          Show level 2 information plus Bash commands (xtrace)
     -h
       Show this help
 USAGE
@@ -64,7 +80,7 @@ USAGE
 }
 
 function log() { echo "$(date +'%F %R'): ${1}" }
-function log_debug() { log "[DEBUG] ${1}" }
+function log_debug() { [ "${_debug_mode}" -ge 1 ] && log "[DEBUG] ${1}" }
 function log_info() { log "[INFO] ${1}" }
 function log_warn() { log "[WARN] ${1}" }
 function log_err() { log "[ERR] ${1}" }
@@ -80,6 +96,8 @@ function trap_exit() {
     log_err "Backup aborted"
 
     cleanFailedBackup
+  else
+    log_info "Backup done"
   fi
 
   exit "${status}"
@@ -95,7 +113,22 @@ function cleanFailedBackup() {
 function execZimbraCmd() {
   local cmd="${1}"
   export PATH="${PATH}:${_zimbra_main_path}/bin:${_zimbra_main_path}/libexec/"
+  
+  if [ "${_debug_mode}" -ge 2 ]; then
+    log_debug "CMD: ${cmd}"
+  fi
+
   su "${_zimbra_user}" -c "${cmd}"
+}
+
+# Usable after zimbraBackupAccountSettings
+function extractFromSettings() {
+  local email="${1}"
+  local field="${2}"
+  local settings_file="${_backups_path}/accounts/${email}/settings"
+  local value=$((grep '^${field}:' "${settings_file}" || true) | sed "s/^${field}: //")
+
+  echo -n "${value}"
 }
 
 
@@ -131,8 +164,7 @@ function zimbraGetAccountSettings() {
 
 function zimbraGetAliases() {
   local email="${1}"
-  local settings="${2}"
-  # TODO
+  extractFromSettings "${email}" zimbraMailAlias
 }
 
 function zimbraGetFilters() {
@@ -143,6 +175,11 @@ function zimbraGetFilters() {
 function zimbraGetSignatures() {
   local email="${1}"
   execZimbraCmd "zmprov getSignatures '${email}'"
+}
+
+function zimbraGetFoldersList() {
+  local email="${1}"
+  execZimbraCmd "zmmailbox --zadmin --mailbox '${email}' getAllFolders" | awk '/\// { print $5 }'
 }
 
 
@@ -180,17 +217,31 @@ function zimbraBackupLists() {
 
 function zimbraBackupAccountData() {
   local email="${1}"
-  local filter_query=${_backups_nobackup_paths// / and not under:}
   local backup_path="${_backups_path}/accounts/${email}"
   local backup_file="${backup_path}/data.tgz"
+  local filter_query=
 
   install -o "${_zimbra_user}" -g "${_zimbra_group}" -d "${backup_path}"
 
-  if ! [ -z "${filter_query}" ]; then
-    filter_query="&query=not under:${filter_query}"
+  if ! [ -z "${_backups_exclude_paths}" ]; then
+    local folders=$(zimbraGetFoldersList "${email}")
+
+    # Zimbra fails if a non-existing folder is mentioned in the filter query (even with a "not under")
+    for path in ${_backups_exclude_paths}; do
+      if echo "${folders}" | grep -q "^${path%/}\$"; then
+        filter_query="${filter_query} and not under:${path%/}"
+      else
+        log_info "Path <${path%/}> doesn't exist for <$email>"
+      fi
+    done
+
+    if ! [ -z "${filter_query}" ]; then
+      filter_query="&query=${filter_query/ and /}"
+    fi
+
+    log_debug "Data filter query is <${filter_query}> for <$email>"
   fi
 
-  log_debug "Filter query: ${filter_query}"
   execZimbraCmd "zmmailbox --zadmin --mailbox '${email}' getRestURL '//?fmt=tgz${filter_query}' > '${backup_file}'"
 }
 
@@ -207,10 +258,9 @@ function zimbraBackupAccountAliases() {
   local email="${1}"
   local backup_path="${_backups_path}/accounts/${email}"
   local backup_file="${backup_path}/aliases"
-  local settings_file="${backup_path}/settings"
 
   install -o "${_zimbra_user}" -g "${_zimbra_group}" -d "${backup_path}"
-  zimbraGetAliases "${email}" "${settings_file}" > "${backup_file}"
+  zimbraGetAliases "${email}" > "${backup_file}"
 }
 
 function zimbraBackupAccountFilters() {
@@ -269,11 +319,12 @@ function zimbraBackupAccountSignatures() {
 ### GLOBAL VARIABLES ###
 ########################
 
+_debug_mode=0
 _zimbra_user='zimbra'
 _zimbra_group='zimbra'
 _zimbra_main_path='/opt/zimbra'
 _backups_path='/tmp/backups'
-_backups_nobackup_paths='/Inbox/nobackup /Briefcase/nobackup'
+_backups_exclude_paths=
 _backuping_account=
 _account_to_backup=
 _exclude_admins=false
@@ -289,28 +340,37 @@ _exclude_signatures=false
 ### OPTIONS ###
 ###############
 
-while getopts 'm:s:p:u:g:b:e:h' opt; do
+while getopts 'm:s:p:u:g:b:e:d:h' opt; do
   case "${opt}" in
     m) _account_to_backup="${OPTARG}" ;;
-    s) _backups_nobackup_paths="${OPTARG}" ;;
+    s) _backups_exclude_paths=$(echo ${_backups_exclude_paths} ${OPTARG}) ;;
     p) _zimbra_main_path="${OPTARG}" ;;
     u) _zimbra_user="${OPTARG}" ;;
     g) _zimbra_group="${OPTARG}" ;;
     b) _backups_path="${OPTARG}" ;;
-    e) case "${OPTARG}" in
-         admins) _exclude_admins=true ;;
-         domains) _exclude_domains=true ;;
-         lists) _exclude_lists=true ;;
-         data) _exclude_data=true ;;
-         filters) _exclude_filters=true ;;
-         aliases) _exclude_aliases=true ;;
-         signatures) _exclude_signatures=true ;;
-         *) log_err "Value <${OPTARG}> not supported by option -e"; show_usage ;;
-       esac ;;
+    e) for subopt in ${OPTARG}; do
+         case "${subopt}" in
+           admins) _exclude_admins=true ;;
+           domains) _exclude_domains=true ;;
+           lists) _exclude_lists=true ;;
+           data) _exclude_data=true ;;
+           filters) _exclude_filters=true ;;
+           aliases) _exclude_aliases=true ;;
+           signatures) _exclude_signatures=true ;;
+           *) log_err "Value <${OPTARG}> not supported by option -e"; show_usage ;;
+         esac ;;
+       done
+    d) _debug_mode="${OPTARG}" ;;
     h) show_usage ;;
     \?) exit_usage ;;
   esac
 done
+
+_backups_exclude_paths=$(echo ${_backups_exclude_paths})
+
+if [ "${_debug_mode}" -ge 3 ]; then
+  set -o xtrace
+fi
 
 if ! [ -d "${_zimbra_main_path}" -a -x "${_zimbra_main_path}" ]; then
   log_err "Zimbra path <${_zimbra_main_path}> doesn't exist, is not a directory or is not executable"
@@ -355,10 +415,10 @@ for email in ${accounts}; do
   _backuping_account="${email}"
 
   if [ -e "${_backups_path}/accounts/${email}" ];
-    log_warn "Skipping <${email}> account (folder already exists)"
+    log_warn "Skip <${email}> account (folder already exists)"
   else
 
-    log_info "Backuping settings from <${email}>"
+    log_info "Backuping general settings from <${email}>"
     zimbraBackupAccountSettings "${email}"
 
     ${_exclude_aliases} || {
@@ -384,7 +444,5 @@ for email in ${accounts}; do
 
   _backuping_account=
 done
-
-log_info "Backup done!"
 
 exit 0
