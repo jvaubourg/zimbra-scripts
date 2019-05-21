@@ -52,7 +52,7 @@ function exit_usage() {
     -e ASSET
       Do a partial restoration, by excluding some settings/data
       Repeat this option as many times as necessary to exclude more than only one asset
-      [Default] Everything is backuped
+      [Default] Everything is restored
       [Example] -e domains -e data
 
       ASSET can be:

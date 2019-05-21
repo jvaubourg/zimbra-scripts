@@ -30,7 +30,7 @@ function exit_usage() {
       Email of an account to exclude of the backup
       Repeat this option as many times as necessary to backup more than only one account
       Cannot be used with -m at the same time
-      [Default] None
+      [Default] No exclusion
       [Example] -x foo@example.com -x bar@example.org
 
     -s path
@@ -62,7 +62,7 @@ function exit_usage() {
     -e ASSET
       Do a partial backup, by excluding some settings/data
       Repeat this option as many times as necessary to exclude more than only one asset
-      [Default] Everything is restored
+      [Default] Everything is backuped
       [Example] -e domains -e data
 
       ASSET can be:
