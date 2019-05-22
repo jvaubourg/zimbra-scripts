@@ -151,13 +151,13 @@ function resetAccountRestoreDuration() {
 
 function showAccountRestoreDuration() {
   local duration_secs=$(( SECONDS - _restore_timer ))
-  local duration_fancy=$(date -ud "0 ${duration_secs} seconds" +%H:%M:%S)
+  local duration_fancy=$(date -ud "0 ${duration_secs} seconds" +%T)
 
   log_info "Time used for restoring this account: ${duration_fancy}"
 }
 
 function showFullRestoreDuration {
-  local duration_fancy=$(date -ud "0 ${SECONDS} seconds" +%H:%M:%S)
+  local duration_fancy=$(date -ud "0 ${SECONDS} seconds" +%T)
 
   log_info "Time used for restoring everything: ${duration_fancy}"
 }
