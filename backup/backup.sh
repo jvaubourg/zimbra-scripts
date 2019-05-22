@@ -112,7 +112,7 @@ USAGE
   exit "${status}"
 }
 
-function log() { echo "$(date +'%F %R'): ${1}"; }
+function log() { echo -E "$(date +'%F %T')# ${1}"; }
 function log_debug() { [ "${_debug_mode}" -ge 1 ] && log "[DEBUG] ${1}" >&2; }
 function log_info() { log "[INFO] ${1}"; }
 function log_warn() { log "[WARN] ${1}" >&2; }
@@ -153,6 +153,8 @@ function cleanFailedBackup() {
         log_debug "Failed backup of <${email}> was NOT removed"
       fi
     fi
+
+    _backuping_account=
   fi
 }
 
@@ -169,18 +171,23 @@ function showAccountBackupDuration {
 
 function showFullBackupDuration {
   local duration_fancy=$(date -ud "0 ${SECONDS} seconds" +%H:%M:%S)
+
   log_info "Time used for backuping everything: ${duration_fancy}"
 }
 
 function execZimbraCmd() {
-  local cmd="${1}"
-  export PATH="${PATH}:${_zimbra_main_path}/bin:${_zimbra_main_path}/libexec/"
+  # References (namerefs) are not supported by Bash prior to 4.4 (CentOS currently uses 4.3)
+  # For now we expect that the parent function defined a cmd variable
+  # local -n command="${1}"
+
+  local path="PATH=/sbin:/bin:/usr/sbin:/usr/bin:${_zimbra_main_path}/bin:${_zimbra_main_path}/libexec"
   
   if [ "${_debug_mode}" -ge 2 ]; then
-    log_debug "CMD: ${cmd}"
+    log_debug "CMD: ${cmd[*]}"
   fi
 
-  su "${_zimbra_user}" -c "${cmd}"
+  # Using sudo instead of su -c and an array instead of a string prevent code injections
+  sudo -u "${_zimbra_user}" env "${path}" "${cmd[@]}"
 }
 
 # Usable after zimbraBackupAccountSettings
@@ -190,11 +197,12 @@ function extractFromAccountSettingsFile() {
   local settings_file="${_backups_path}/accounts/${email}/settings"
   local value=$((grep "^${field}:" "${settings_file}" || true) | sed "s/^${field}: //")
 
-  echo -n "${value}"
+  echo -En "${value}"
 }
 
 function setZimbraPermissions() {
   local folder="${1}"
+
   chown -R "${_zimbra_user}:${_zimbra_group}" "${folder}"
 }
 
@@ -214,7 +222,7 @@ function selectAccountsToBackup() {
   
       for email in ${accounts_to_backup}; do
         if ! [[ "${exclude_accounts}" =~ (^| )"${email}"($| ) ]]; then
-          accounts=$(echo ${accounts} ${email})
+          accounts="${accounts} ${email}"
         fi
       done
   
@@ -222,7 +230,7 @@ function selectAccountsToBackup() {
     fi
   fi
 
-  echo $accounts_to_backup
+  echo -E ${accounts_to_backup}
 }
 
 
@@ -231,55 +239,76 @@ function selectAccountsToBackup() {
 ######################
 
 function zimbraGetAdminAccounts() {
-  execZimbraCmd 'zmprov --ldap getAllAdminAccounts'
+  local cmd=(zmprov --ldap getAllAdminAccounts)
+
+  execZimbraCmd cmd
 }
 
 function zimbraGetDomains() {
-  execZimbraCmd 'zmprov --ldap getAllDomains'
+  local cmd=(zmprov --ldap getAllDomains)
+
+  execZimbraCmd cmd
 }
 
 function zimbraGetLists() {
-  execZimbraCmd 'zmprov --ldap getAllDistributionLists'
+  local cmd=(zmprov --ldap getAllDistributionLists)
+
+  execZimbraCmd cmd
 }
 
 function zimbraGetListMembers() {
   local list_email="${1}"
-  execZimbraCmd "zmprov --ldap getDistributionListMembership '${list_email}'"
+  local cmd=(zmprov --ldap getDistributionListMembership "${list_email}")
+
+  execZimbraCmd cmd
 }
 
 function zimbraGetAccounts() {
-  echo $(execZimbraCmd 'zmprov --ldap getAllAccounts' | (grep -vE '^(spam\.|ham\.|virus-quarantine\.|galsync[.@])' || true))
+  local cmd=(zmprov --ldap getAllAccounts)
+
+  echo -E $(execZimbraCmd cmd | (grep -vE '^(spam\.|ham\.|virus-quarantine\.|galsync[.@])' || true))
 }
 
 function zimbraGetAccountSettings() {
   local email="${1}"
-  execZimbraCmd "zmprov --ldap getAccount '${email}'"
+  local cmd=(zmprov --ldap getAccount "${email}")
+
+  execZimbraCmd cmd
 }
 
 function zimbraGetAccountAliases() {
   local email="${1}"
+
   extractFromAccountSettingsFile "${email}" zimbraMailAlias
 }
 
 function zimbraGetAccountSignatures() {
   local email="${1}"
-  execZimbraCmd "zmprov getSignatures '${email}'"
+  local cmd=(zmprov getSignatures "${email}")
+
+  execZimbraCmd cmd
 }
 
 function zimbraGetAccountFilters() {
   local email="${1}"
-  execZimbraCmd "zmprov getAccount '${email}' zimbraMailSieveScript" | sed '1d;s/^zimbraMailSieveScript: //'
+  local cmd=(zmprov getAccount "${email}" zimbraMailSieveScript)
+
+  execZimbraCmd cmd | sed '1d;s/^zimbraMailSieveScript: //'
 }
 
 function zimbraGetMailboxFoldersList() {
   local email="${1}"
-  execZimbraCmd "zmmailbox --zadmin --mailbox '${email}' getAllFolders" | awk '/\// { print $5 }'
+  local cmd=(zmmailbox --zadmin --mailbox "${email}" getAllFolders)
+
+  execZimbraCmd cmd | awk '/\// { print $5 }'
 }
 
 function zimbraGetMailboxData() {
   local email="${1}"
   local filter_query="${2}"
-  execZimbraCmd "zmmailbox --zadmin --mailbox '${email}' getRestURL '//?fmt=tgz${filter_query}'"
+  local cmd=(zmmailbox --zadmin --mailbox "${email}" getRestURL "//?fmt=tgz${filter_query}")
+
+  execZimbraCmd cmd
 }
 
 
@@ -305,6 +334,7 @@ function zimbraBackupDomains() {
 
 function zimbraBackupLists() {
   local backup_path="${_backups_path}/lists"
+
   install -o "${_zimbra_user}" -g "${_zimbra_group}" -d "${backup_path}"
 
   for list_email in $(zimbraGetLists); do
@@ -364,7 +394,7 @@ function zimbraBackupAccountSignatures() {
 
       # Save the name of the signature in the first line
       local backup_file="${tmp_backup_file}.${extension}"
-      echo "${name}" > "${backup_file}"
+      echo -E "${name}" > "${backup_file}"
 
       # Remove every line corresponding to a Zimbra field and not the signature content itself
       (grep -iv '^zimbra[a-z]\+: ' "${tmp_backup_file}" || true) >> "${backup_file}"
@@ -399,8 +429,8 @@ function zimbraBackupAccountData() {
 
     # Zimbra fails if a non-existing folder is mentioned in the filter query (even with a "not under")
     for path in ${_backups_exclude_paths}; do
-      if echo "${folders}" | grep -q "^${path}\$"; then
-        filter_query="${filter_query} and not under:${path}"
+      if echo -E "${folders}" | grep -q "^${path}\$"; then
+        filter_query="${filter_query} and not under:\"${path}\""
       else
         log_info "${email}: Path <${path}> is missing in data"
       fi
@@ -451,9 +481,9 @@ trap 'exit 1' INT
 
 while getopts 'm:x:s:p:u:g:b:e:d:h' opt; do
   case "${opt}" in
-    m) _backups_include_accounts=$(echo ${_backups_include_accounts} ${OPTARG}) ;;
-    x) _backups_exclude_accounts=$(echo ${_backups_exclude_accounts} ${OPTARG}) ;;
-    s) _backups_exclude_paths=$(echo ${_backups_exclude_paths} ${OPTARG%/}) ;;
+    m) _backups_include_accounts=$(echo -E ${_backups_include_accounts} ${OPTARG}) ;;
+    x) _backups_exclude_accounts=$(echo -E ${_backups_exclude_accounts} ${OPTARG}) ;;
+    s) _backups_exclude_paths=$(echo -E ${_backups_exclude_paths} ${OPTARG%/}) ;;
     b) _backups_path="${OPTARG%/}" ;;
     p) _zimbra_main_path="${OPTARG%/}" ;;
     u) _zimbra_user="${OPTARG}" ;;

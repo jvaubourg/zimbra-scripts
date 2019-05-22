@@ -7,11 +7,6 @@ set -o errtrace
 set -o pipefail
 set -o nounset
 
-==><==
-1) attaques par injection possibles via su -c
-2) une simple quote dans le nom fait tout merder
-==><==
-
 
 #############
 ## HELPERS ##
@@ -103,7 +98,7 @@ USAGE
   exit "${status}"
 }
 
-function log() { echo "$(date +'%F %R'): ${1}"; }
+function log() { echo -E "$(date +'%F %T')# ${1}"; }
 function log_debug() { [ "${_debug_mode}" -ge 1 ] && log "[DEBUG] ${1}" >&2; }
 function log_info() { log "[INFO] ${1}"; }
 function log_warn() { log "[WARN] ${1}" >&2; }
@@ -144,6 +139,8 @@ function cleanFailedRestoration() {
         log_debug "Incomplete <${_restoring_account}> account was NOT deleted"
       fi
     fi
+
+    _restoring_account=
   fi
 }
 
@@ -160,18 +157,23 @@ function showAccountRestoreDuration() {
 
 function showFullRestoreDuration {
   local duration_fancy=$(date -ud "0 ${SECONDS} seconds" +%H:%M:%S)
+
   log_info "Time used for restoring everything: ${duration_fancy}"
 }
 
 function execZimbraCmd() {
-  local cmd="${1}"
-  export PATH="${PATH}:${_zimbra_main_path}/bin:${_zimbra_main_path}/libexec/"
+  # References (namerefs) are not supported by Bash prior to 4.4 (CentOS currently uses 4.3)
+  # For now we expect that the parent function defined a cmd variable
+  # local -n command="${1}"
 
+  local path="PATH=/sbin:/bin:/usr/sbin:/usr/bin:${_zimbra_main_path}/bin:${_zimbra_main_path}/libexec"
+  
   if [ "${_debug_mode}" -ge 2 ]; then
-    log_debug "CMD: ${cmd}"
+    log_debug "CMD: ${cmd[*]}"
   fi
 
-  su "${_zimbra_user}" -c "${cmd}"
+  # Using sudo instead of su -c and an array instead of a string prevent code injections
+  sudo -u "${_zimbra_user}" env "${path}" "${cmd[@]}"
 }
 
 function checkAccountSettingsFile() {
@@ -191,7 +193,7 @@ function extractFromAccountSettingsFile() {
   local backup_file="${_backups_path}/accounts/${email}/settings"
   local value=$((grep "^${field}:" "${backup_file}" || true) | sed "s/^${field}: //")
 
-  echo -n "${value}"
+  echo -En "${value}"
 }
 
 function selectAccountsToRestore() {
@@ -209,7 +211,7 @@ function selectAccountsToRestore() {
   
       for email in ${accounts_to_restore}; do
         if ! [[ "${exclude_accounts}" =~ (^| )"${email}"($| ) ]]; then
-          accounts=$(echo ${accounts} ${email})
+          accounts="${accounts} ${email}"
         fi
       done
   
@@ -217,7 +219,7 @@ function selectAccountsToRestore() {
     fi
   fi
 
-  echo ${accounts_to_restore}
+  echo -E ${accounts_to_restore}
 }
 
 
@@ -226,28 +228,37 @@ function selectAccountsToRestore() {
 ######################
 
 function zimbraGetMainDomain() {
-  execZimbraCmd "zmprov getConfig zimbraDefaultDomainName" | sed "s/^zimbraDefaultDomainName: //"
+  local cmd=(zmprov getConfig zimbraDefaultDomainName)
+
+  execZimbraCmd cmd | sed "s/^zimbraDefaultDomainName: //"
 }
 
 function zimbraCreateDomain() {
   local domain="${1}"
-  execZimbraCmd "zmprov createDomain '${domain}' zimbraAuthMech zimbra"
+  local cmd=(zmprov createDomain "${domain}" zimbraAuthMech zimbra)
+
+  execZimbraCmd cmd
 }
 
 function zimbraCreateList() {
   local list_email="${1}"
-  execZimbraCmd "zmprov createDistributionList '${list_email}'"
+  local cmd=(zmprov createDistributionList "${list_email}")
+
+  execZimbraCmd cmd
 }
 
 function zimbraSetListMember() {
   local list_email="${1}"
   local member_email="${2}"
+  local cmd=(zmprov addDistributionListMember "${list_email}" "${member_email}")
 
-  execZimbraCmd "zmprov addDistributionListMember '${list_email}' '${member_email}'"
+  execZimbraCmd cmd
 }
 
 function zimbraGetAccounts() {
-  echo $(execZimbraCmd 'zmprov --ldap getAllAccounts' | (grep -vE '^(spam\.|ham\.|virus-quarantine\.|galsync[.@])' || true))
+  local cmd=(zmprov --ldap getAllAccounts)
+
+  echo -E $(execZimbraCmd cmd | (grep -vE '^(spam\.|ham\.|virus-quarantine\.|galsync[.@])' || true))
 }
 
 function zimbraCreateAccount() {
@@ -257,21 +268,28 @@ function zimbraCreateAccount() {
   local displayName="${4}"
   local hash_password="${5}"
   local tmp_password="${RANDOM}${RANDOM}"
+  local cmd=
 
-  execZimbraCmd "zmprov createAccount '${email}' '${tmp_password}' cn '${cn}' displayName '${displayName}' givenName '${givenName}' zimbraPrefFromDisplay '${displayName}'"  > /dev/null
-  execZimbraCmd "zmprov modifyAccount '${email}' userPassword '${hash_password}'"
+  cmd=(zmprov createAccount "${email}" "${tmp_password}" cn "${cn}" displayName "${displayName}" givenName "${givenName}" zimbraPrefFromDisplay "${displayName}")
+  execZimbraCmd cmd | grep -v '^\([[:alnum:]]\+-\)\{4\}[[:alnum:]]\+$' # grep hides returned id
+
+  cmd=(zmprov modifyAccount "${email}" userPassword "${hash_password}")
+  execZimbraCmd cmd
 }
 
 function zimbraDeleteAccount() {
   local email="${1}"
-  execZimbraCmd "zmprov deleteAccount '${email}'"
+  local cmd=(zmprov deleteAccount "${email}")
+
+  execZimbraCmd cmd
 }
 
 function zimbraSetAccountAlias() {
   local email="${1}"
   local alias="${2}"
+  local cmd=(zmprov addAccountAlias "${email}" "${alias}")
 
-  execZimbraCmd "zmprov addAccountAlias '${email}' '${alias}'"
+  execZimbraCmd cmd
 }
 
 function zimbraSetAccountSignature() {
@@ -285,22 +303,25 @@ function zimbraSetAccountSignature() {
     field=zimbraPrefMailSignatureHTML
   fi
 
-  execZimbraCmd "zmprov createSignature '${email}' '${name}' ${field} \"${content}\"" > /dev/null
+  local cmd=(zmprov createSignature "${email}" "${name}" "${field}" "${content}")
+  execZimbraCmd cmd | grep -v '^\([[:alnum:]]\+-\)\{4\}[[:alnum:]]\+$' # grep hides returned id
 }
 
 function zimbraSetAccountFilters() {
   local email="${1}"
   local filters_path="${2}"
-  local filters=$(sed 's/"/\\"/g' "${filters_path}")
+  local filters=$(cat "${filters_path}")
+  local cmd=(zmprov modifyAccount "${email}" zimbraMailSieveScript "${filters}")
 
-  execZimbraCmd "zmprov modifyAccount '${email}' zimbraMailSieveScript \"${filters}\""
+  execZimbraCmd cmd
 }
 
 function zimbraSetAccountData() {
   local email="${1}"
   local backup_file="${2}"
+  local cmd=(zmmailbox --zadmin --mailbox "${email}" -t 0 postRestURL --url https://localhost:8443 '/?fmt=tgz&resolve=reset' "${backup_file}")
 
-  execZimbraCmd "zmmailbox --zadmin --mailbox '${email}' -t 0 postRestURL --url https://localhost:8443 '/?fmt=tgz&resolve=reset' '${backup_file}'"
+  execZimbraCmd cmd
 }
 
 
@@ -398,14 +419,14 @@ function zimbraRestoreAccountSignatures() {
     fi
 
     local name=$(head -n 1 "${backup_file}")
-    local content=$(sed '1d;s/"/\\"/g' "${backup_file}")
+    local content=$(tail -n +2 "${backup_file}")
     local type=txt
 
     if [[ "${backup_file}" =~ \.html$ ]]; then
       type=html
     fi
 
-    log_debug "${email}: Create signature type <${type}> named <${name}>"
+    log_debug "${email}: Create signature type ${type} named <${name}>"
     zimbraSetAccountSignature "${email}" "${name}" "${type}" "${content}"
   done
 }
@@ -469,8 +490,8 @@ trap 'exit 1' INT
 
 while getopts 'm:p:u:b:e:d:h' opt; do
   case "${opt}" in
-    m) _backups_include_accounts=$(echo ${_backups_include_accounts} ${OPTARG}) ;;
-    x) _backups_exclude_accounts=$(echo ${_backups_exclude_accounts} ${OPTARG}) ;;
+    m) _backups_include_accounts=$(echo -E ${_backups_include_accounts} ${OPTARG}) ;;
+    x) _backups_exclude_accounts=$(echo -E ${_backups_exclude_accounts} ${OPTARG}) ;;
     b) _backups_path="${OPTARG%/}" ;;
     p) _zimbra_main_path="${OPTARG%/}" ;;
     u) _zimbra_user="${OPTARG}" ;;
