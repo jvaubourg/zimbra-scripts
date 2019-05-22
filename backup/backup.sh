@@ -234,6 +234,37 @@ function selectAccountsToBackup() {
   echo -E ${accounts_to_backup}
 }
 
+function getAccountExcludedDataSize() {
+  local email="${1}"
+  local exclude_paths="${2}"
+  local total_size_bytes=0
+  local total_size_human=
+
+  for path in ${exclude_paths}; do
+    local attributes=$(zimbraGetFolderAttributes "${email}" "${path}" 2> /dev/null || true)
+
+    if ! [ -z "${attributes}" ]; then
+      local size_bytes=$(echo -E "${attributes}" | sed 's/^.*:\s\+\([0-9]\+\).*$/\1/' | paste -sd+ | bc)
+      total_size_bytes=$(( total_size_bytes + size_bytes ))
+    fi
+  done
+
+  total_size_human=$(numfmt --to=iec --suffix=B "${total_size_bytes}")
+
+  echo -E "${total_size_human}"
+}
+
+function getAccountIncludedDataSize() {
+  local email="${1}"
+  local excluded_size_human="${2}"
+
+  local excluded_size_bytes=$(numfmt --from=iec --suffix=B "${excluded_size_human}")
+  local data_size_bytes=$(zimbraGetAccountDataSize "${email}" | numfmt --from=iec --suffix=B | tr -d B)
+  local included_size_human=$(numfmt --to=iec --suffix=B "$(( data_size_bytes - excluded_size_bytes ))")
+
+  echo -E "${included_size_human}"
+}
+
 
 ######################
 ## ZIMBRA CLI & API ##
@@ -315,6 +346,14 @@ function zimbraGetAccountData() {
   local email="${1}"
   local filter_query="${2}"
   local cmd=(zmmailbox --zadmin --mailbox "${email}" getRestURL "//?fmt=tgz${filter_query}")
+
+  execZimbraCmd cmd
+}
+
+function zimbraGetFolderAttributes() {
+  local email="${1}"
+  local path="${2}"
+  local cmd=(zmmailbox --zadmin --mailbox "${email}" getFolder "${path}")
 
   execZimbraCmd cmd
 }
@@ -565,7 +604,9 @@ ${_exclude_lists} || {
   zimbraBackupLists
 }
 
-log_info "Preparing accounts backuping"
+if [ -z "${_backups_include_accounts}" ]; then
+  log_info "Preparing accounts backuping"
+fi
 
 log_debug "Select accounts to backup"
 _accounts_to_backup=$(selectAccountsToBackup "${_backups_include_accounts}" "${_backups_exclude_accounts}")
@@ -606,8 +647,26 @@ else
       }
   
       ${_exclude_data} || {
-        log_info "${email}: Backuping data ($(zimbraGetAccountDataSize "${email}"))"
-        zimbraBackupAccountData "${email}"
+
+        # Without excluded folders
+        if [ -z "${_backups_exclude_paths}" ]; then
+          log_debug "Calculate account data size"
+          data_size=$(zimbraGetAccountDataSize "${email}")
+
+          log_info "${email}: Backuping data (${data_size})"
+          zimbraBackupAccountData "${email}"
+
+        # With excluded folders
+        else
+          log_debug "Calculate size of the included/excluded folders in data"
+          excluded_data_size=$(getAccountExcludedDataSize "${email}" "${_backups_exclude_paths}")
+          included_data_size=$(getAccountIncludedDataSize "${email}" "${excluded_data_size}")
+
+          log_info "${email}: Backuping data (${included_data_size})"
+          zimbraBackupAccountData "${email}"
+
+          log_info "${email}: (${excluded_data_size} of data have been excluded)"
+        fi
       }
   
       showAccountBackupDuration
