@@ -156,22 +156,20 @@ function cleanFailedBackup() {
   fi
 }
 
-function initDuration() {
-  SECONDS=0
-  SECONDS_step=0
+function resetAccountBackupDuration() {
+  _backup_timer="${SECONDS}"
 }
 
-function showStepDuration {
-  local duration_secs=$(( SECONDS - SECONDS_step ))
+function showAccountBackupDuration {
+  local duration_secs=$(( SECONDS - _backup_timer ))
   local duration_fancy=$(date -ud "0 ${duration_secs} seconds" +%H:%M:%S)
 
-  log_info "Time duration of the last step: ${duration_fancy}"
-  SECONDS_step="${SECONDS}"
+  log_info "Time used for backuping this account: ${duration_fancy}"
 }
 
-function showScriptDuration {
+function showFullBackupDuration {
   local duration_fancy=$(date -ud "0 ${SECONDS} seconds" +%H:%M:%S)
-  log_info "Time duration of the whole process: ${duration_fancy}"
+  log_info "Time used for backuping everything: ${duration_fancy}"
 }
 
 function execZimbraCmd() {
@@ -190,7 +188,7 @@ function extractFromAccountSettingsFile() {
   local email="${1}"
   local field="${2}"
   local settings_file="${_backups_path}/accounts/${email}/settings"
-  local value=$((grep '^${field}:' "${settings_file}" || true) | sed "s/^${field}: //")
+  local value=$((grep "^${field}:" "${settings_file}" || true) | sed "s/^${field}: //")
 
   echo -n "${value}"
 }
@@ -198,6 +196,33 @@ function extractFromAccountSettingsFile() {
 function setZimbraPermissions() {
   local folder="${1}"
   chown -R "${_zimbra_user}:${_zimbra_group}" "${folder}"
+}
+
+function selectAccountsToBackup() {
+  local include_accounts="${1}"
+  local exclude_accounts="${2}"
+  local accounts_to_backup="${include_accounts}"
+
+  # Backup either accounts provided with -m, either all accounts,
+  # either all accounts minus the ones provided with -x
+  if [ -z "${accounts_to_backup}" ]; then
+    accounts_to_backup=$(zimbraGetAccounts)
+    log_debug "Existing accounts: ${accounts_to_backup}"
+  
+    if ! [ -z "${exclude_accounts}" ]; then
+      accounts=
+  
+      for email in ${accounts_to_backup}; do
+        if ! [[ "${exclude_accounts}" =~ (^| )"${email}"($| ) ]]; then
+          accounts=$(echo ${accounts} ${email})
+        fi
+      done
+  
+      accounts_to_backup="${accounts}"
+    fi
+  fi
+
+  echo $accounts_to_backup
 }
 
 
@@ -223,7 +248,7 @@ function zimbraGetListMembers() {
 }
 
 function zimbraGetAccounts() {
-  execZimbraCmd 'zmprov --ldap getAllAccounts' | (grep -vE '^(spam\.|ham\.|virus-quarantine\.|galsync[.@])' || true)
+  echo $(execZimbraCmd 'zmprov --ldap getAllAccounts' | (grep -vE '^(spam\.|ham\.|virus-quarantine\.|galsync[.@])' || true))
 }
 
 function zimbraGetAccountSettings() {
@@ -377,7 +402,7 @@ function zimbraBackupAccountData() {
       if echo "${folders}" | grep -q "^${path}\$"; then
         filter_query="${filter_query} and not under:${path}"
       else
-        log_info "${email}: Path <${path}> doesn't exist in data"
+        log_info "${email}: Path <${path}> is missing in data"
       fi
     done
 
@@ -414,7 +439,7 @@ _exclude_data=false
 _debug_mode=0
 _accounts_to_backup=
 _backuping_account=
-SECONDS_step=
+_backup_timer=
 
 
 ###############
@@ -487,48 +512,23 @@ fi
 ### SCRIPT ###
 ##############
 
-initDuration
-
 ${_exclude_admins} || {
   log_info "Backuping admins list"
   zimbraBackupAdmins
-  showStepDuration
 }
 
 ${_exclude_domains} || {
   log_info "Backuping domains"
   zimbraBackupDomains
-  showStepDuration
 }
 
 ${_exclude_lists} || {
   log_info "Backuping mailing lists"
   zimbraBackupLists
-  showStepDuration
 }
 
-_accounts_to_backup="${_backups_include_accounts}"
-
-# Backup either accounts provided with -m, either all accounts,
-# either all accounts minus the ones provided with -x
-if [ -z "${_accounts_to_backup}" ]; then
-  log_info "Getting list of existing accounts"
-  _accounts_to_backup=$(zimbraGetAccounts)
-
-  if ! [ -z "${_backups_exclude_accounts}" ]; then
-    accounts=
-
-    for email in ${_accounts_to_backup}; do
-      if ! [[ "${_backups_exclude_accounts}" =~ (^| )"${email}"($| ) ]]; then
-        accounts=$(echo ${accounts} ${email})
-      fi
-    done
-
-    _accounts_to_backup="${accounts}"
-  fi
-
-  showStepDuration
-fi
+log_info "Selecting accounts to backup"
+_accounts_to_backup=$(selectAccountsToBackup "${_backups_include_accounts}" "${_backups_exclude_accounts}")
 
 if [ -z "${_accounts_to_backup}" ]; then
   log_debug "No account to backup"
@@ -540,6 +540,8 @@ else
     if [ -e "${_backups_path}/accounts/${email}" ]; then
       log_warn "Skip <${email}> account (<${_backups_path}/accounts/${email}> already exists)"
     else
+      resetAccountBackupDuration
+
       _backuping_account="${email}"
       log_info "Backuping <${email}> account"
   
@@ -568,13 +570,13 @@ else
         zimbraBackupAccountData "${email}"
       }
   
-      showStepDuration
+      showAccountBackupDuration
       _backuping_account=
     fi
   done
 fi
 
 setZimbraPermissions "${_backups_path}"
-showScriptDuration
+showFullBackupDuration
 
 exit 0

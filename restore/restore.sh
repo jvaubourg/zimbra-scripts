@@ -7,6 +7,11 @@ set -o errtrace
 set -o pipefail
 set -o nounset
 
+==><==
+1) attaques par injection possibles via su -c
+2) une simple quote dans le nom fait tout merder
+==><==
+
 
 #############
 ## HELPERS ##
@@ -70,8 +75,6 @@ function exit_usage() {
           Do not restore contents of the mailboxes
         all_except_accounts
           Only restore the accounts and the related users' settings
-        all_except_data
-          Only restore the data of the mailboxes
 
   OTHERS
 
@@ -144,22 +147,20 @@ function cleanFailedRestoration() {
   fi
 }
 
-function initDuration() {
-  SECONDS=0
-  SECONDS_step=0
+function resetAccountRestoreDuration() {
+  _restore_timer="${SECONDS}"
 }
 
-function showStepDuration {
-  local duration_secs=$(( SECONDS - SECONDS_step ))
+function showAccountRestoreDuration() {
+  local duration_secs=$(( SECONDS - _restore_timer ))
   local duration_fancy=$(date -ud "0 ${duration_secs} seconds" +%H:%M:%S)
 
-  log_info "Time duration of the last step: ${duration_fancy}"
-  SECONDS_step="${SECONDS}"
+  log_info "Time used for restoring this account: ${duration_fancy}"
 }
 
-function showScriptDuration {
+function showFullRestoreDuration {
   local duration_fancy=$(date -ud "0 ${SECONDS} seconds" +%H:%M:%S)
-  log_info "Time duration of the whole process: ${duration_fancy}"
+  log_info "Time used for restoring everything: ${duration_fancy}"
 }
 
 function execZimbraCmd() {
@@ -178,7 +179,7 @@ function checkAccountSettingsFile() {
   local backup_file="${_backups_path}/accounts/${email}/settings"
 
   if ! [ -f "${backup_file}" -a -r "${backup_file}" ]; then
-    log_err "File <${backup_file}> doesn't exist, is not a regular file or is not readable or reachable"
+    log_err "File <${backup_file}> is missing, is not a regular file or is not readable"
     exit 1
   fi
 }
@@ -188,9 +189,35 @@ function extractFromAccountSettingsFile() {
   local email="${1}"
   local field="${2}"
   local backup_file="${_backups_path}/accounts/${email}/settings"
-  local value=$((grep '^${field}:' "${backup_file}" || true) | sed "s/^${field}: //")
+  local value=$((grep "^${field}:" "${backup_file}" || true) | sed "s/^${field}: //")
 
   echo -n "${value}"
+}
+
+function selectAccountsToRestore() {
+  local include_accounts="${1}"
+  local exclude_accounts="${2}"
+  local accounts_to_restore="${include_accounts}"
+  
+  # Restore either accounts provided with -m, either all accounts,
+  # either all accounts minus the ones provided with -x
+  if [ -z "${accounts_to_restore}" ]; then
+    accounts_to_restore=$(ls "${_backups_path}/accounts")
+  
+    if ! [ -z "${exclude_accounts}" ]; then
+      accounts=
+  
+      for email in ${accounts_to_restore}; do
+        if ! [[ "${exclude_accounts}" =~ (^| )"${email}"($| ) ]]; then
+          accounts=$(echo ${accounts} ${email})
+        fi
+      done
+  
+      accounts_to_restore="${accounts}"
+    fi
+  fi
+
+  echo ${accounts_to_restore}
 }
 
 
@@ -199,7 +226,7 @@ function extractFromAccountSettingsFile() {
 ######################
 
 function zimbraGetMainDomain() {
-  execZimbraCmd "zmprov gcf zimbraDefaultDomainName" | sed "s/^zimbraDefaultDomainName: //"
+  execZimbraCmd "zmprov getConfig zimbraDefaultDomainName" | sed "s/^zimbraDefaultDomainName: //"
 }
 
 function zimbraCreateDomain() {
@@ -220,7 +247,7 @@ function zimbraSetListMember() {
 }
 
 function zimbraGetAccounts() {
-  execZimbraCmd 'zmprov --ldap getAllAccounts' | (grep -vE '^(spam\.|ham\.|virus-quarantine\.|galsync[.@])' || true)
+  echo $(execZimbraCmd 'zmprov --ldap getAllAccounts' | (grep -vE '^(spam\.|ham\.|virus-quarantine\.|galsync[.@])' || true))
 }
 
 function zimbraCreateAccount() {
@@ -229,9 +256,9 @@ function zimbraCreateAccount() {
   local givenName="${3}"
   local displayName="${4}"
   local hash_password="${5}"
-  local tmp_password="${RANDOM}"
+  local tmp_password="${RANDOM}${RANDOM}"
 
-  execZimbraCmd "zmprov createAccount '${email}' '${tmp_password}' cn '${cn}' displayName '${displayName}' givenName '${givenName}' zimbraPrefFromDisplay '${displayName}'"
+  execZimbraCmd "zmprov createAccount '${email}' '${tmp_password}' cn '${cn}' displayName '${displayName}' givenName '${givenName}' zimbraPrefFromDisplay '${displayName}'"  > /dev/null
   execZimbraCmd "zmprov modifyAccount '${email}' userPassword '${hash_password}'"
 }
 
@@ -258,13 +285,13 @@ function zimbraSetAccountSignature() {
     field=zimbraPrefMailSignatureHTML
   fi
 
-  execZimbraCmd "zmprov createSignature '${email}' '${name}' ${field} \"${content}\""
+  execZimbraCmd "zmprov createSignature '${email}' '${name}' ${field} \"${content}\"" > /dev/null
 }
 
 function zimbraSetAccountFilters() {
   local email="${1}"
   local filters_path="${2}"
-  local filters=$(cat "${filters_path}")
+  local filters=$(sed 's/"/\\"/g' "${filters_path}")
 
   execZimbraCmd "zmprov modifyAccount '${email}' zimbraMailSieveScript \"${filters}\""
 }
@@ -286,7 +313,7 @@ function zimbraRestoreDomains() {
   local backup_file="${backup_path}/domains"
 
   if ! [ -f "${backup_file}" -a -r "${backup_file}" ]; then
-    log_err "File <${backup_file}> doesn't exist, is not a regular file or is not readable or reachable"
+    log_err "File <${backup_file}> is missing, is not a regular file or is not readable"
     exit 1
   fi
 
@@ -308,7 +335,7 @@ function zimbraRestoreLists() {
     local backup_file="${backup_path}/${list_email}"
 
     if ! [ -f "${backup_file}" -a -r "${backup_file}" ]; then
-      log_err "File <${backup_file}> doesn't exist, is not a regular file or is not readable or reachable"
+      log_err "File <${backup_file}> is not a regular file or is not readable"
       exit 1
     fi
 
@@ -358,20 +385,20 @@ function zimbraRestoreAccountSignatures() {
   local backup_path="${_backups_path}/accounts/${email}/signatures"
 
   if ! [ -d "${backup_path}" -a -r "${backup_path}" ]; then
-    log_err "Path <${backup_path}> doesn't exist, is not a directory or is not readable"
+    log_err "Path <${backup_path}> is missing, is not a directory or is not readable"
     exit 1
   fi
 
-  local signature_files=$(ls "${backup_path}")
+  local signature_files=$(find "${backup_path}" -mindepth 1)
 
-  for backup_file in "${signature_files}"; do
+  for backup_file in ${signature_files}; do
     if ! [ -f "${backup_file}" -a -r "${backup_file}" ]; then
-      log_err "File <${backup_file}> doesn't exist, is not a regular file or is not readable"
+      log_err "File <${backup_file}> is not a regular file or is not readable"
       exit 1
     fi
 
     local name=$(head -n 1 "${backup_file}")
-    local content=$(sed 's/"/\\"/g' "${backup_file}")
+    local content=$(sed '1d;s/"/\\"/g' "${backup_file}")
     local type=txt
 
     if [[ "${backup_file}" =~ \.html$ ]]; then
@@ -389,11 +416,11 @@ function zimbraRestoreAccountFilters() {
   local backup_file="${backup_path}/filters"
 
   if ! [ -f "${backup_file}" -a -r "${backup_file}" ]; then
-    log_err "File <${backup_file}> doesn't exist, is not a regular file or is not regular or reachable"
+    log_err "File <${backup_file}> is missing, is not a regular file or is not readable"
     exit 1
   fi
 
-  zimbraSetAccountFilters "${email}" "${backup_path}"
+  zimbraSetAccountFilters "${email}" "${backup_file}"
 }
 
 function zimbraRestoreAccountData() {
@@ -402,7 +429,7 @@ function zimbraRestoreAccountData() {
   local backup_file="${backup_path}/data.tgz"
 
   if ! [ -f "${backup_file}" -a -r "${backup_file}" ]; then
-    log_err "File <${backup_file}> doesn't exist, is not a regular file or is not regular or reachable"
+    log_err "File <${backup_file}> is missing, is not a regular file or is not readable"
     exit 1
   fi
 
@@ -416,12 +443,11 @@ function zimbraRestoreAccountData() {
 
 _backups_include_accounts=
 _backups_exclude_accounts=
-_backups_path='/tmp/backups'
+_backups_path='/tmp/zimbra_backups'
 _zimbra_main_path='/opt/zimbra'
 _zimbra_user='zimbra'
 _exclude_domains=false
 _exclude_lists=false
-_exclude_settings=false
 _exclude_aliases=false
 _exclude_signatures=false
 _exclude_filters=false
@@ -431,7 +457,7 @@ _zimbra_install_domain=
 _accounts_to_restore=
 _existing_accounts=
 _restoring_account=
-SECONDS_step=
+_restore_timer=
 
 
 ###############
@@ -459,13 +485,6 @@ while getopts 'm:p:u:b:e:d:h' opt; do
            all_except_accounts)
              _exclude_domains=true
              _exclude_lists=true ;;
-           all_except_data)
-             _exclude_domains=true
-             _exclude_lists=true
-             _exclude_settings=true
-             _exclude_aliases=true
-             _exclude_signatures=true
-             _exclude_filters=true ;;
            *) log_err "Value <${OPTARG}> not supported by option -e"; exit_usage 1 ;;
          esac
        done ;;
@@ -499,77 +518,55 @@ fi
 ### SCRIPT ###
 ##############
 
-initDuration
-
+log_info "Getting Zimbra main domain"
 _zimbra_install_domain=$(zimbraGetMainDomain)
 log_debug "Zimbra main domain is <${_zimbra_install_domain}>"
 
-${_exclude_domains} || {
+${_exclude_domains} || {
   log_info "Restoring domains"
   zimbraRestoreDomains
-  showStepDuration
 }
 
-${_exclude_lists} || {
+${_exclude_lists} || {
   log_info "Restoring mailing lists"
   zimbraRestoreLists
-  showStepDuration
 }
 
-_accounts_to_restore="${_backups_include_accounts}"
+log_info "Selecting accounts to restore"
+_accounts_to_restore=$(selectAccountsToRestore "${_backups_include_accounts}" "${_backups_exclude_accounts}")
 
-# Restore either accounts provided with -m, either all accounts,
-# either all accounts minus the ones provided with -x
 if [ -z "${_accounts_to_restore}" ]; then
-  _accounts_to_restore=$(ls "${_backups_path}/accounts")
-
-  if ! [ -z "${_backups_exclude_accounts}" ]; then
-    accounts=
-
-    for email in ${_accounts_to_restore}; do
-      if ! [[ "${_backups_exclude_accounts}" =~ (^| )"${email}"($| ) ]]; then
-        accounts=$(echo ${accounts} ${email})
-      fi
-    done
-
-    _accounts_to_restore="${accounts}"
-  fi
-fi
-
-if [ -z "${_accounts_to_backup}" ]; then
   log_debug "No account to restore"
 else
   log_debug "Accounts to restore: ${_accounts_to_restore}"
 
-  log_info "Getting list of already existing accounts"
   _existing_accounts=$(zimbraGetAccounts)
   log_debug "Already existing accounts: ${_existing_accounts}"
-  showStepDuration
 
   # Restore accounts
   for email in ${_accounts_to_restore}; do
     if [[ "${_existing_accounts}" =~ (^| )"${email}"($| ) ]]; then
       log_warn "Skip <${email}> account (already exists in Zimbra)"
     else
-      ${_exclude_settings} || {
-        log_info "Creating <${email}> account"
-        zimbraRestoreAccount "${email}"
-      }
+      resetAccountRestoreDuration
+
+      log_info "Creating <${email}> account"
+      zimbraRestoreAccount "${email}"
 
       _restoring_account="${email}"
       log_info "Restoring <${email}> account"
   
-      ${_exclude_aliases} || {
+      ${_exclude_aliases} || {
         log_info "${email}: Restoring aliases"
         zimbraRestoreAccountAliases "${email}"
       }
   
-      ${_exclude_signatures} || {
+      ${_exclude_signatures} || {
         log_info "${email}: Restoring signatures"
         zimbraRestoreAccountSignatures "${email}"
       }
   
-      ${_exclude_filters} || {
+      ${_exclude_filters} || {
         log_info "${email}: Restoring filters"
         zimbraRestoreAccountFilters "${email}"
       }
@@ -579,12 +576,12 @@ else
         zimbraRestoreAccountData "${email}"
       }
   
-      showStepDuration
+      showAccountRestoreDuration
       _restoring_account=
     fi
   done
 fi
 
-showScriptDuration
+showFullRestoreDuration
 
 exit 0
