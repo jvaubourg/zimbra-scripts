@@ -17,7 +17,8 @@ function exit_usage() {
 
   cat <<USAGE
 
-  MAILBOXES
+  ACCOUNTS
+    Accounts with an already existing backup folder will be skipped with a warning.
 
     -m email
       Email of an account to include in the backup
@@ -79,11 +80,11 @@ function exit_usage() {
         filters
           Do not backup sieve filters
         data
-          Do not backup contents of the mailboxes
+          Do not backup contents of the mailboxes (ie. folders/emails/contacts/calendar/briefcase/tasks)
         all_except_accounts
-          Only backup the accounts and the related users' settings
+          Only backup the accounts (ie. users' settings and contents of the mailboxes)
         all_except_data
-          Only backup the data of the mailboxes
+          Only backup the contents of the mailboxes
 
   OTHERS
 
@@ -113,7 +114,7 @@ USAGE
 }
 
 function log() { echo -E "$(date +'%F %T')# ${1}"; }
-function log_debug() { [ "${_debug_mode}" -ge 1 ] && log "[DEBUG] ${1}" >&2; }
+function log_debug() { ([ "${_debug_mode}" -ge 1 ] && log "[DEBUG] ${1}" >&2) || true; }
 function log_info() { log "[INFO] ${1}"; }
 function log_warn() { log "[WARN] ${1}" >&2; }
 function log_err() { log "[ERR] ${1}" >&2; }
@@ -139,18 +140,18 @@ function trap_exit() {
 }
 
 function cleanFailedBackup() {
+  log_debug "Cleaning after fail"
+
   if [ ! -z "${_backuping_account}" -a -d "${_backups_path}/accounts/${_backuping_account}" ]; then
-    log_debug "Trying to clean the failed backup of <${_backuping_account}>"
+    local ask_remove=y
     
     if [ "${_debug_mode}" -gt 0 ]; then
-      local ask_rm=
-      read -p "Remove <${_backups_path}/accounts/${_backuping_account}> (default: Y)? " ask_rm
-      
-      if [ -z "${ask_rm}" -o "${ask_rm}" = Y -o "${ask_rm}" = y ]; then
-        rm -rf "${_backups_path}/accounts/${_backuping_account}"
-        log_debug "Failed backup of <${email}> removed"
-      else
-        log_debug "Failed backup of <${email}> was NOT removed"
+      read -p "Remove failed account backup <${_backups_path}/accounts/${_backuping_account}> (default: Y)? " ask_remove
+    fi
+
+    if [ -z "${ask_remove}" -o "${ask_remove}" = Y -o "${ask_remove}" = y ]; then
+      if rm -rf "${_backups_path}/accounts/${_backuping_account}"; then
+        log_info "The failed backup of <${email}> has been removed"
       fi
     fi
 
@@ -296,14 +297,21 @@ function zimbraGetAccountFilters() {
   execZimbraCmd cmd | sed '1d;s/^zimbraMailSieveScript: //'
 }
 
-function zimbraGetMailboxFoldersList() {
+function zimbraGetAccountFoldersList() {
   local email="${1}"
   local cmd=(zmmailbox --zadmin --mailbox "${email}" getAllFolders)
 
   execZimbraCmd cmd | awk '/\// { print $5 }'
 }
 
-function zimbraGetMailboxData() {
+function zimbraGetAccountDataSize() {
+  local email="${1}"
+  local cmd=(zmmailbox --zadmin --mailbox "${email}" getMailboxSize)
+
+  execZimbraCmd cmd | tr -d ' '
+}
+
+function zimbraGetAccountData() {
   local email="${1}"
   local filter_query="${2}"
   local cmd=(zmmailbox --zadmin --mailbox "${email}" getRestURL "//?fmt=tgz${filter_query}")
@@ -425,7 +433,7 @@ function zimbraBackupAccountData() {
   install -o "${_zimbra_user}" -g "${_zimbra_group}" -d "${backup_path}"
 
   if ! [ -z "${_backups_exclude_paths}" ]; then
-    local folders=$(zimbraGetMailboxFoldersList "${email}")
+    local folders=$(zimbraGetAccountFoldersList "${email}")
 
     # Zimbra fails if a non-existing folder is mentioned in the filter query (even with a "not under")
     for path in ${_backups_exclude_paths}; do
@@ -443,7 +451,7 @@ function zimbraBackupAccountData() {
     log_debug "${email}: Data filter query is <${filter_query}>"
   fi
 
-  zimbraGetMailboxData "${email}" "${filter_query}" > "${backup_file}"
+  zimbraGetAccountData "${email}" "${filter_query}" > "${backup_file}"
 }
 
 
@@ -557,7 +565,9 @@ ${_exclude_lists} || {
   zimbraBackupLists
 }
 
-log_info "Selecting accounts to backup"
+log_info "Preparing accounts backuping"
+
+log_debug "Select accounts to backup"
 _accounts_to_backup=$(selectAccountsToBackup "${_backups_include_accounts}" "${_backups_exclude_accounts}")
 
 if [ -z "${_accounts_to_backup}" ]; then
@@ -568,12 +578,12 @@ else
   # Backup accounts
   for email in ${_accounts_to_backup}; do
     if [ -e "${_backups_path}/accounts/${email}" ]; then
-      log_warn "Skip <${email}> account (<${_backups_path}/accounts/${email}> already exists)"
+      log_warn "Skip account <${email}> (the folder <${_backups_path}/accounts/${email}> already exists)"
     else
       resetAccountBackupDuration
 
       _backuping_account="${email}"
-      log_info "Backuping <${email}> account"
+      log_info "Backuping account <${email}>"
   
       ${_exclude_settings} || {
         log_info "${email}: Backuping settings file"
@@ -596,7 +606,7 @@ else
       }
   
       ${_exclude_data} || {
-        log_info "${email}: Backuping mailbox data"
+        log_info "${email}: Backuping data ($(zimbraGetAccountDataSize "${email}"))"
         zimbraBackupAccountData "${email}"
       }
   

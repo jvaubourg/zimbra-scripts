@@ -17,17 +17,18 @@ function exit_usage() {
 
   cat <<USAGE
 
-  MAILBOXES
+  ACCOUNTS
+    Already existing accounts in Zimbra will be skipped with a warning.
 
     -m email
-      Email of an account to include in the restoration
+      Email of an account to include in the restore
       Repeat this option as many times as necessary to restore more than only one account
       Cannot be used with -x at the same time
       [Default] All accounts
       [Example] -m foo@example.com -m bar@example.org
 
     -x email
-      Email of an account to exclude of the restoration
+      Email of an account to exclude of the restore
       Repeat this option as many times as necessary to restore more than only one account
       Cannot be used with -m at the same time
       [Default] No exclusion
@@ -50,7 +51,7 @@ function exit_usage() {
   EXCLUSIONS
 
     -e ASSET
-      Do a partial restoration, by excluding some settings/data
+      Do a partial restore, by excluding some settings/data
       Repeat this option as many times as necessary to exclude more than only one asset
       [Default] Everything is restored
       [Example] -e domains -e data
@@ -67,9 +68,9 @@ function exit_usage() {
         filters
           Do not restore sieve filters
         data
-          Do not restore contents of the mailboxes
+          Do not restore contents of the mailboxes (ie. folders/emails/contacts/calendar/briefcase/tasks)
         all_except_accounts
-          Only restore the accounts and the related users' settings
+          Only restore the accounts (ie. users' settings and contents of the mailboxes)
 
   OTHERS
 
@@ -99,7 +100,7 @@ USAGE
 }
 
 function log() { echo -E "$(date +'%F %T')# ${1}"; }
-function log_debug() { [ "${_debug_mode}" -ge 1 ] && log "[DEBUG] ${1}" >&2; }
+function log_debug() { ([ "${_debug_mode}" -ge 1 ] && log "[DEBUG] ${1}" >&2) || true; }
 function log_info() { log "[INFO] ${1}"; }
 function log_warn() { log "[WARN] ${1}" >&2; }
 function log_err() { log "[ERR] ${1}" >&2; }
@@ -115,28 +116,28 @@ function trap_exit() {
       log_err "There was an unexpected interruption on line ${line}"
     fi
 
-    log_err "Restoration aborted"
-    cleanFailedRestoration
+    log_err "Restore aborted"
+    cleanFailedRestore
   else
-    log_info "Restoration done"
+    log_info "Restore done"
   fi
 
   exit "${status}"
 }
 
-function cleanFailedRestoration() {
+function cleanFailedRestore() {
+  log_debug "Cleaning after fail"
+
   if ! [ -z "${_restoring_account}" ]; then
-    log_debug "Trying to clean the incomplete account <${_restoring_account}>"
+    local ask_remove=y
 
     if [ "${_debug_mode}" -gt 0 ]; then
-      local ask_delete=
-      read -p "Delete <${_restoring_account}> account (default: Y)? " ask_delete
+      read -p "Remove incomplete account <${_restoring_account}> (default: Y)? " ask_remove
+    fi
 
-      if [ -z "${ask_delete}" -o "${ask_delete}" = Y -o "${ask_delete}" = y ]; then
-        zimbraDeleteAccount "${_restoring_account}"
-        log_debug "Incomplete <${_restoring_account}> account deleted"
-      else
-        log_debug "Incomplete <${_restoring_account}> account was NOT deleted"
+    if [ -z "${ask_remove}" -o "${ask_remove}" = Y -o "${ask_remove}" = y ]; then
+      if zimbraRemoveAccount "${_restoring_account}"; then
+        log_info "The account <${_restoring_account}> has been removed"
       fi
     fi
 
@@ -222,6 +223,14 @@ function selectAccountsToRestore() {
   echo -E ${accounts_to_restore}
 }
 
+function getAccountDataFileSize() {
+  local email="${1}"
+  local backup_path="${_backups_path}/accounts/${email}"
+  local backup_file="${backup_path}/data.tgz"
+
+  echo -E "$(du -sh "${backup_file}" | awk '{ print $1 }')B"
+}
+
 
 ######################
 ## ZIMBRA CLI & API ##
@@ -271,13 +280,13 @@ function zimbraCreateAccount() {
   local cmd=
 
   cmd=(zmprov createAccount "${email}" "${tmp_password}" cn "${cn}" displayName "${displayName}" givenName "${givenName}" zimbraPrefFromDisplay "${displayName}")
-  execZimbraCmd cmd | grep -v '^\([[:alnum:]]\+-\)\{4\}[[:alnum:]]\+$' # grep hides returned id
+  execZimbraCmd cmd | (grep -v '^\([[:alnum:]]\+-\)\{4\}[[:alnum:]]\+$' || true) # grep hides returned id
 
   cmd=(zmprov modifyAccount "${email}" userPassword "${hash_password}")
   execZimbraCmd cmd
 }
 
-function zimbraDeleteAccount() {
+function zimbraRemoveAccount() {
   local email="${1}"
   local cmd=(zmprov deleteAccount "${email}")
 
@@ -304,7 +313,7 @@ function zimbraSetAccountSignature() {
   fi
 
   local cmd=(zmprov createSignature "${email}" "${name}" "${field}" "${content}")
-  execZimbraCmd cmd | grep -v '^\([[:alnum:]]\+-\)\{4\}[[:alnum:]]\+$' # grep hides returned id
+  execZimbraCmd cmd | (grep -v '^\([[:alnum:]]\+-\)\{4\}[[:alnum:]]\+$' || true) # grep hides returned id
 }
 
 function zimbraSetAccountFilters() {
@@ -553,7 +562,7 @@ ${_exclude_lists} || {
   zimbraRestoreLists
 }
 
-log_info "Selecting accounts to restore"
+log_debug "Select accounts to restore"
 _accounts_to_restore=$(selectAccountsToRestore "${_backups_include_accounts}" "${_backups_exclude_accounts}")
 
 if [ -z "${_accounts_to_restore}" ]; then
@@ -567,15 +576,15 @@ else
   # Restore accounts
   for email in ${_accounts_to_restore}; do
     if [[ "${_existing_accounts}" =~ (^| )"${email}"($| ) ]]; then
-      log_warn "Skip <${email}> account (already exists in Zimbra)"
+      log_warn "Skip account <${email}> (already exists in Zimbra)"
     else
       resetAccountRestoreDuration
 
-      log_info "Creating <${email}> account"
+      log_info "Creating account <${email}>"
       zimbraRestoreAccount "${email}"
 
       _restoring_account="${email}"
-      log_info "Restoring <${email}> account"
+      log_info "Restoring account <${email}>"
   
       ${_exclude_aliases} || {
         log_info "${email}: Restoring aliases"
@@ -593,7 +602,7 @@ else
       }
   
       ${_exclude_data} || {
-        log_info "${email}: Restoring mailbox data"
+        log_info "${email}: Restoring data ($(getAccountDataFileSize "${email}"))"
         zimbraRestoreAccountData "${email}"
       }
   
