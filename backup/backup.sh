@@ -35,10 +35,10 @@ function exit_usage() {
       [Example] -x foo@example.com -x bar@example.org
 
     -s path
-      Path of a folder to skip when backuping data from accounts
-      Repeat this option as many times as necessary to exclude more than only one folder
+      Path of a folder to skip when backuping data from accounts (can be a POSIX BRE regex for grep between ^ and $)
+      Repeat this option as many times as necessary to exclude different kind of folders
       [Default] No exclusion
-      [Example] -s /Inbox/lists -s /Briefcase/films
+      [Example] -s /Briefcase/movies -s '/Inbox/list-.*' -s '.*/nobackup'
 
   ENVIRONMENT
 
@@ -113,12 +113,13 @@ USAGE
   exit "${status}"
 }
 
-function log() { echo -E "$(date +'%F %T')# ${1}"; }
+function log() { printf '%s# %s\n' "$(date +'%F %T')" "${1}"; }
 function log_debug() { ([ "${_debug_mode}" -ge 1 ] && log "[DEBUG] ${1}" >&2) || true; }
 function log_info() { log "[INFO] ${1}"; }
 function log_warn() { log "[WARN] ${1}" >&2; }
 function log_err() { log "[ERR] ${1}" >&2; }
 
+# Warning: traps can be thrown inside command substitutions $(...) and don't stop the main process in this case
 function trap_exit() {
   local status="${?}"
   local line="${1}"
@@ -138,6 +139,48 @@ function trap_exit() {
 
   exit "${status}"
 }
+
+function resetAccountBackupDuration() {
+  _backup_timer="${SECONDS}"
+}
+
+function showAccountBackupDuration {
+  local duration_secs=$(( SECONDS - _backup_timer ))
+  local duration_fancy=$(date -ud "0 ${duration_secs} seconds" +%T)
+
+  log_info "Time used for backuping this account: ${duration_fancy}"
+}
+
+function showFullBackupDuration {
+  local duration_fancy=$(date -ud "0 ${SECONDS} seconds" +%T)
+
+  log_info "Time used for backuping everything: ${duration_fancy}"
+}
+
+function escapeGrepStringRegexChars() {
+  local search="${1}"
+  printf '%s' "$(printf '%s' "${search}" | sed 's/[.[\*^$]/\\&/g')"
+}
+
+function execZimbraCmd() {
+  # References (namerefs) are not supported by Bash prior to 4.4 (CentOS currently uses 4.3)
+  # For now we expect that the parent function defined a cmd variable
+  # local -n command="${1}"
+
+  local path="PATH=/sbin:/bin:/usr/sbin:/usr/bin:${_zimbra_main_path}/bin:${_zimbra_main_path}/libexec"
+  
+  if [ "${_debug_mode}" -ge 2 ]; then
+    log_debug "CMD: ${cmd[*]}"
+  fi
+
+  # Using sudo instead of su -c and an array instead of a string prevent code injections
+  sudo -u "${_zimbra_user}" env "${path}" "${cmd[@]}"
+}
+
+
+####################
+## CORE FUNCTIONS ##
+####################
 
 function cleanFailedBackup() {
   log_debug "Cleaning after fail"
@@ -159,38 +202,6 @@ function cleanFailedBackup() {
   fi
 }
 
-function resetAccountBackupDuration() {
-  _backup_timer="${SECONDS}"
-}
-
-function showAccountBackupDuration {
-  local duration_secs=$(( SECONDS - _backup_timer ))
-  local duration_fancy=$(date -ud "0 ${duration_secs} seconds" +%T)
-
-  log_info "Time used for backuping this account: ${duration_fancy}"
-}
-
-function showFullBackupDuration {
-  local duration_fancy=$(date -ud "0 ${SECONDS} seconds" +%T)
-
-  log_info "Time used for backuping everything: ${duration_fancy}"
-}
-
-function execZimbraCmd() {
-  # References (namerefs) are not supported by Bash prior to 4.4 (CentOS currently uses 4.3)
-  # For now we expect that the parent function defined a cmd variable
-  # local -n command="${1}"
-
-  local path="PATH=/sbin:/bin:/usr/sbin:/usr/bin:${_zimbra_main_path}/bin:${_zimbra_main_path}/libexec"
-  
-  if [ "${_debug_mode}" -ge 2 ]; then
-    log_debug "CMD: ${cmd[*]}"
-  fi
-
-  # Using sudo instead of su -c and an array instead of a string prevent code injections
-  sudo -u "${_zimbra_user}" env "${path}" "${cmd[@]}"
-}
-
 # Usable after zimbraBackupAccountSettings
 function extractFromAccountSettingsFile() {
   local email="${1}"
@@ -198,7 +209,7 @@ function extractFromAccountSettingsFile() {
   local settings_file="${_backups_path}/accounts/${email}/settings"
   local value=$((grep "^${field}:" "${settings_file}" || true) | sed "s/^${field}: //")
 
-  echo -En "${value}"
+  printf '%s' "${value}"
 }
 
 function setZimbraPermissions() {
@@ -218,11 +229,11 @@ function selectAccountsToBackup() {
     accounts_to_backup=$(zimbraGetAccounts)
     log_debug "Existing accounts: ${accounts_to_backup}"
   
-    if ! [ -z "${exclude_accounts}" ]; then
+    if [ ! -z "${exclude_accounts}" ]; then
       accounts=
   
       for email in ${accounts_to_backup}; do
-        if ! [[ "${exclude_accounts}" =~ (^| )"${email}"($| ) ]]; then
+        if [[ ! "${exclude_accounts}" =~ (^| )"${email}"($| ) ]]; then
           accounts="${accounts} ${email}"
         fi
       done
@@ -231,38 +242,76 @@ function selectAccountsToBackup() {
     fi
   fi
 
-  echo -E ${accounts_to_backup}
+  # echo is used to remove extra spaces
+  echo -En ${accounts_to_backup}
 }
 
-function getAccountExcludedDataSize() {
+function selectAccountDataPathsToExclude() {
+  local email="${1}"
+  local backup_path="${_backups_path}/accounts/${email}"
+  local backup_file="${backup_path}/excluded_data_paths"
+
+  install -o "${_zimbra_user}" -g "${_zimbra_group}" -d "${backup_path}"
+  touch "${backup_file}"
+
+  if [ "${#_backups_exclude_data_regexes[@]}" -gt 0 ]; then
+    local folders=$(zimbraGetAccountFoldersList "${email}")
+  
+    for regex in "${_backups_exclude_data_regexes[@]}"; do
+      local selected_folders=$(printf '%s' "${folders}" | (grep -- "^${regex}\$" || true))
+
+      if [ ! -z "${selected_folders}" ]; then
+        log_debug "${email}: Raw list of the folders selected to be excluded: $(echo ${selected_folders})"
+
+        if [ "$(printf '%s' "${selected_folders}" | wc -l)" -gt 1 ]; then
+
+          # We need to be sure that some selected folders are not included in other ones
+          while [ ! -z "${selected_folders}" ]; do
+            local first=$(printf '%s' "${selected_folders}" | head -n 1)
+            local first_escaped=$(escapeGrepStringRegexChars "${first}")
+
+            # The list of folders is sorted by Zimbra so the first path cannot be included in another one
+            log_debug "${email}: Data folder <${first}> will not be backuped"
+            printf '%s\n' "${first}" >> "${backup_file}"
+
+            # Remove the saved folder and all of its subfolders from the selection and start again with the parent loop
+            selected_folders=$(printf '%s' "${selected_folders}" | (grep -v -- "^${first_escaped}\\(\$\\|/\\)" || true))
+          done
+        else
+          log_debug "${email}: Data folder <${selected_folders}> will not be backuped"
+          printf '%s\n' "${selected_folders}" > "${backup_file}"
+        fi
+      fi
+    done
+  fi
+}
+
+function getAccountExcludeDataSize() {
   local email="${1}"
   local exclude_paths="${2}"
   local total_size_bytes=0
   local total_size_human=
 
   for path in ${exclude_paths}; do
-    local attributes=$(zimbraGetFolderAttributes "${email}" "${path}" 2> /dev/null || true)
-
-    if ! [ -z "${attributes}" ]; then
-      local size_bytes=$(echo -E "${attributes}" | sed 's/^.*:\s\+\([0-9]\+\).*$/\1/' | paste -sd+ | bc)
-      total_size_bytes=$(( total_size_bytes + size_bytes ))
-    fi
+    local size_attributes=$(zimbraGetFolderAttributes "${email}" "${path}" | grep '^\s\+"size":')
+    local size_bytes=$(printf '%s' "${size_attributes}" | sed 's/^.*:\s\+\([0-9]\+\).*$/\1/' | paste -sd+ | bc)
+    total_size_bytes=$(( total_size_bytes + size_bytes ))
   done
 
   total_size_human=$(numfmt --to=iec --suffix=B "${total_size_bytes}")
 
-  echo -E "${total_size_human}"
+  printf '%s' "${total_size_human}"
 }
 
-function getAccountIncludedDataSize() {
+function getAccountIncludeDataSize() {
   local email="${1}"
-  local excluded_size_human="${2}"
+  local exclude_size_human="${2}"
 
-  local excluded_size_bytes=$(numfmt --from=iec --suffix=B "${excluded_size_human}")
+  local exclude_size_bytes=$(numfmt --from=iec --suffix=B "${exclude_size_human}" | tr -d B)
   local data_size_bytes=$(zimbraGetAccountDataSize "${email}" | numfmt --from=iec --suffix=B | tr -d B)
-  local included_size_human=$(numfmt --to=iec --suffix=B "$(( data_size_bytes - excluded_size_bytes ))")
+  local include_size_human=$(numfmt --to=iec --suffix=B "$(( data_size_bytes - exclude_size_bytes ))")
 
-  echo -E "${included_size_human}"
+  printf '%s' "${include_size_human}"
 }
 
 
@@ -298,7 +347,8 @@ function zimbraGetListMembers() {
 function zimbraGetAccounts() {
   local cmd=(zmprov --ldap getAllAccounts)
 
-  echo -E $(execZimbraCmd cmd | (grep -vE '^(spam\.|ham\.|virus-quarantine\.|galsync[.@])' || true))
+  # echo is used to remove return chars
+  echo -En $(execZimbraCmd cmd | (grep -vE '^(spam\.|ham\.|virus-quarantine\.|galsync[.@])' || true))
 }
 
 function zimbraGetAccountSettings() {
@@ -325,6 +375,7 @@ function zimbraGetAccountFilters() {
   local email="${1}"
   local cmd=(zmprov getAccount "${email}" zimbraMailSieveScript)
 
+  # 1d removes the comment on the first line
   execZimbraCmd cmd | sed '1d;s/^zimbraMailSieveScript: //'
 }
 
@@ -388,7 +439,7 @@ function zimbraBackupLists() {
     local backup_file="${backup_path}/${list_email}"
 
     log_debug "Backup members of ${list_email}"
-    zimbraGetListMembers "${list_email}" | (grep @ | grep -v '^#' || true) > "${backup_file}"
+    zimbraGetListMembers "${list_email}" | (grep -F @ | grep -v '^#' || true) > "${backup_file}"
   done
 }
 
@@ -420,7 +471,8 @@ function zimbraBackupAccountSignatures() {
   zimbraGetAccountSignatures "${email}" | awk "/^# name / { file=\"${backup_path}/\"++i; next } { print > file }"
 
   # Every signature file has to be parsed to reorganize the information inside
-  for tmp_backup_file in $(find "${backup_path}" -mindepth 1); do
+  find "${backup_path}" -mindepth 1 | while read tmp_backup_file
+  do
     local extension='txt'
 
     # Save the name of the signature from the Zimbra field
@@ -432,7 +484,7 @@ function zimbraBackupAccountSignatures() {
     else
 
       # A field zimbraPrefMailSignatureHTML instead of zimbraPrefMailSignature means an HTML signature
-      if grep -q zimbraPrefMailSignatureHTML "${tmp_backup_file}"; then
+      if grep -Fq zimbraPrefMailSignatureHTML "${tmp_backup_file}"; then
         extension=html
       fi
 
@@ -440,13 +492,14 @@ function zimbraBackupAccountSignatures() {
       sed 's/zimbraPrefMailSignature\(HTML\)\?: //' -i "${tmp_backup_file}"
 
       # Save the name of the signature in the first line
+      # Rename the file to indicate if the signature is html or plain text
       local backup_file="${tmp_backup_file}.${extension}"
-      echo -E "${name}" > "${backup_file}"
+      printf '%s' "${name}" > "${backup_file}"
 
       # Remove every line corresponding to a Zimbra field and not the signature content itself
       (grep -iv '^zimbra[a-z]\+: ' "${tmp_backup_file}" || true) >> "${backup_file}"
 
-      # Remove the last empty line and rename the file to indicate if the signature is html or plain text
+      # Remove the last empty line
       sed '${ /^$/d }' -i "${backup_file}"
     fi
 
@@ -467,29 +520,38 @@ function zimbraBackupAccountData() {
   local email="${1}"
   local backup_path="${_backups_path}/accounts/${email}"
   local backup_file="${backup_path}/data.tgz"
+  local backup_data_size=0B
   local filter_query=
 
   install -o "${_zimbra_user}" -g "${_zimbra_group}" -d "${backup_path}"
 
-  if ! [ -z "${_backups_exclude_paths}" ]; then
-    local folders=$(zimbraGetAccountFoldersList "${email}")
+  selectAccountDataPathsToExclude "${email}"
 
-    # Zimbra fails if a non-existing folder is mentioned in the filter query (even with a "not under")
-    for path in ${_backups_exclude_paths}; do
-      if echo -E "${folders}" | grep -q "^${path}\$"; then
-        filter_query="${filter_query} and not under:\"${path}\""
-      else
-        log_info "${email}: Path <${path}> is missing in data"
-      fi
-    done
+  if [ -s "${backup_path}/excluded_data_paths" ]; then
+    log_debug "${email}: Calculate size of the data to backup"
 
-    if ! [ -z "${filter_query}" ]; then
-      filter_query="&query=${filter_query/ and /}"
-    fi
+    local exclude_paths=$(cat "${backup_path}/excluded_data_paths")
+    local exclude_paths_count=$(wc -l "${backup_path}/excluded_data_paths" | awk '{ print $1 }')
+    local exclude_data_size=$(getAccountExcludeDataSize "${email}" "${exclude_paths}")
+    backup_data_size=$(getAccountIncludeDataSize "${email}" "${exclude_data_size}")
 
+    while read path; do
+      local escaped_path="${path//\"/\\\"}"
+      filter_query="${filter_query} and not under:\"${escaped_path}\""
+    done < "${backup_path}/excluded_data_paths"
+
+    log_info "${email}: ${exclude_data_size} of data are going to be excluded (${exclude_paths_count} folders)"
+  else
+    log_debug "${email}: Calculate size of the data (nothing to exclude)"
+    backup_data_size=$(zimbraGetAccountDataSize "${email}")
+  fi
+
+  if [ ! -z "${filter_query}" ]; then
+    filter_query="&query=${filter_query/ and /}"
     log_debug "${email}: Data filter query is <${filter_query}>"
   fi
 
+  log_info "${email}: ${backup_data_size} of data are going to be backuped"
   zimbraGetAccountData "${email}" "${filter_query}" > "${backup_file}"
 }
 
@@ -500,7 +562,6 @@ function zimbraBackupAccountData() {
 
 _backups_include_accounts=
 _backups_exclude_accounts=
-_backups_exclude_paths=
 _backups_path='/tmp/zimbra_backups'
 _zimbra_main_path='/opt/zimbra'
 _zimbra_user='zimbra'
@@ -518,6 +579,9 @@ _accounts_to_backup=
 _backuping_account=
 _backup_timer=
 
+# Using an array prevents issues with spaces in regexes
+declare -a _backups_exclude_data_regexes
+
 
 ###############
 ### OPTIONS ###
@@ -528,9 +592,10 @@ trap 'exit 1' INT
 
 while getopts 'm:x:s:p:u:g:b:e:d:h' opt; do
   case "${opt}" in
-    m) _backups_include_accounts=$(echo -E ${_backups_include_accounts} ${OPTARG}) ;;
-    x) _backups_exclude_accounts=$(echo -E ${_backups_exclude_accounts} ${OPTARG}) ;;
-    s) _backups_exclude_paths=$(echo -E ${_backups_exclude_paths} ${OPTARG%/}) ;;
+       # echos are used to remove extra spaces
+    m) _backups_include_accounts=$(echo -En ${_backups_include_accounts} ${OPTARG}) ;;
+    x) _backups_exclude_accounts=$(echo -En ${_backups_exclude_accounts} ${OPTARG}) ;;
+    s) _backups_exclude_data_regexes+=("${OPTARG%/}") ;;
     b) _backups_path="${OPTARG%/}" ;;
     p) _zimbra_main_path="${OPTARG%/}" ;;
     u) _zimbra_user="${OPTARG}" ;;
@@ -574,20 +639,20 @@ if [ ! -z "${_backups_include_accounts}" -a ! -z "${_backups_exclude_accounts}" 
   exit 1
 fi
 
-if ! [ -d "${_zimbra_main_path}" -a -x "${_zimbra_main_path}" ]; then
+if [ ! -d "${_zimbra_main_path}" -o ! -x "${_zimbra_main_path}" ]; then
   log_err "Zimbra path <${_zimbra_main_path}> doesn't exist, is not a directory or is not executable"
   exit 1
 fi
 
-if ! [ -d "${_backups_path}" -a -x "${_backups_path}" -a -w "${_backups_path}" ]; then
+if [ ! -d "${_backups_path}" -o ! -x "${_backups_path}" -o ! -w "${_backups_path}" ]; then
   log_err "Backups path <${_backups_path}> doesn't exist, is not a directory or is not writable"
   exit 1
 fi
 
 
-##############
-### SCRIPT ###
-##############
+###################
+### MAIN SCRIPT ###
+###################
 
 ${_exclude_admins} || {
   log_info "Backuping admins list"
@@ -608,7 +673,6 @@ if [ -z "${_backups_include_accounts}" ]; then
   log_info "Preparing accounts backuping"
 fi
 
-log_debug "Select accounts to backup"
 _accounts_to_backup=$(selectAccountsToBackup "${_backups_include_accounts}" "${_backups_exclude_accounts}")
 
 if [ -z "${_accounts_to_backup}" ]; then
@@ -647,26 +711,8 @@ else
       }
   
       ${_exclude_data} || {
-
-        # Without excluded folders
-        if [ -z "${_backups_exclude_paths}" ]; then
-          log_debug "Calculate account data size"
-          data_size=$(zimbraGetAccountDataSize "${email}")
-
-          log_info "${email}: Backuping data (${data_size})"
-          zimbraBackupAccountData "${email}"
-
-        # With excluded folders
-        else
-          log_debug "Calculate size of the included/excluded folders in data"
-          excluded_data_size=$(getAccountExcludedDataSize "${email}" "${_backups_exclude_paths}")
-          included_data_size=$(getAccountIncludedDataSize "${email}" "${excluded_data_size}")
-
-          log_info "${email}: Backuping data (${included_data_size})"
-          zimbraBackupAccountData "${email}"
-
-          log_info "${email}: (${excluded_data_size} of data have been excluded)"
-        fi
+        log_info "${email}: Backuping data"
+        zimbraBackupAccountData "${email}"
       }
   
       showAccountBackupDuration

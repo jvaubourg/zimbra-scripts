@@ -99,12 +99,30 @@ USAGE
   exit "${status}"
 }
 
-function log() { echo -E "$(date +'%F %T')# ${1}"; }
+function log() { printf '%s# %s\n' "$(date +'%F %T')" "${1}"; }
 function log_debug() { ([ "${_debug_mode}" -ge 1 ] && log "[DEBUG] ${1}" >&2) || true; }
 function log_info() { log "[INFO] ${1}"; }
 function log_warn() { log "[WARN] ${1}" >&2; }
 function log_err() { log "[ERR] ${1}" >&2; }
 
+function resetAccountRestoreDuration() {
+  _restore_timer="${SECONDS}"
+}
+
+function showAccountRestoreDuration() {
+  local duration_secs=$(( SECONDS - _restore_timer ))
+  local duration_fancy=$(date -ud "0 ${duration_secs} seconds" +%T)
+
+  log_info "Time used for restoring this account: ${duration_fancy}"
+}
+
+function showFullRestoreDuration {
+  local duration_fancy=$(date -ud "0 ${SECONDS} seconds" +%T)
+
+  log_info "Time used for restoring everything: ${duration_fancy}"
+}
+
+# Warning: traps can be thrown inside command substitutions $(...) and don't stop the main process in this case
 function trap_exit() {
   local status="${?}"
   local line="${1}"
@@ -125,10 +143,30 @@ function trap_exit() {
   exit "${status}"
 }
 
+function execZimbraCmd() {
+  # References (namerefs) are not supported by Bash prior to 4.4 (CentOS currently uses 4.3)
+  # For now we expect that the parent function defined a cmd variable
+  # local -n command="${1}"
+
+  local path="PATH=/sbin:/bin:/usr/sbin:/usr/bin:${_zimbra_main_path}/bin:${_zimbra_main_path}/libexec"
+  
+  if [ "${_debug_mode}" -ge 2 ]; then
+    log_debug "CMD: ${cmd[*]}"
+  fi
+
+  # Using sudo instead of su -c and an array instead of a string prevent code injections
+  sudo -u "${_zimbra_user}" env "${path}" "${cmd[@]}"
+}
+
+
+####################
+## CORE FUNCTIONS ##
+####################
+
 function cleanFailedRestore() {
   log_debug "Cleaning after fail"
 
-  if ! [ -z "${_restoring_account}" ]; then
+  if [ ! -z "${_restoring_account}" ]; then
     local ask_remove=y
 
     if [ "${_debug_mode}" -gt 0 ]; then
@@ -145,43 +183,11 @@ function cleanFailedRestore() {
   fi
 }
 
-function resetAccountRestoreDuration() {
-  _restore_timer="${SECONDS}"
-}
-
-function showAccountRestoreDuration() {
-  local duration_secs=$(( SECONDS - _restore_timer ))
-  local duration_fancy=$(date -ud "0 ${duration_secs} seconds" +%T)
-
-  log_info "Time used for restoring this account: ${duration_fancy}"
-}
-
-function showFullRestoreDuration {
-  local duration_fancy=$(date -ud "0 ${SECONDS} seconds" +%T)
-
-  log_info "Time used for restoring everything: ${duration_fancy}"
-}
-
-function execZimbraCmd() {
-  # References (namerefs) are not supported by Bash prior to 4.4 (CentOS currently uses 4.3)
-  # For now we expect that the parent function defined a cmd variable
-  # local -n command="${1}"
-
-  local path="PATH=/sbin:/bin:/usr/sbin:/usr/bin:${_zimbra_main_path}/bin:${_zimbra_main_path}/libexec"
-  
-  if [ "${_debug_mode}" -ge 2 ]; then
-    log_debug "CMD: ${cmd[*]}"
-  fi
-
-  # Using sudo instead of su -c and an array instead of a string prevent code injections
-  sudo -u "${_zimbra_user}" env "${path}" "${cmd[@]}"
-}
-
 function checkAccountSettingsFile() {
   local email="${1}"
   local backup_file="${_backups_path}/accounts/${email}/settings"
 
-  if ! [ -f "${backup_file}" -a -r "${backup_file}" ]; then
+  if [ ! -f "${backup_file}" -o ! -r "${backup_file}" ]; then
     log_err "File <${backup_file}> is missing, is not a regular file or is not readable"
     exit 1
   fi
@@ -194,7 +200,7 @@ function extractFromAccountSettingsFile() {
   local backup_file="${_backups_path}/accounts/${email}/settings"
   local value=$((grep "^${field}:" "${backup_file}" || true) | sed "s/^${field}: //")
 
-  echo -En "${value}"
+  printf '%s' "${value}"
 }
 
 function selectAccountsToRestore() {
@@ -207,11 +213,11 @@ function selectAccountsToRestore() {
   if [ -z "${accounts_to_restore}" ]; then
     accounts_to_restore=$(ls "${_backups_path}/accounts")
   
-    if ! [ -z "${exclude_accounts}" ]; then
+    if [ ! -z "${exclude_accounts}" ]; then
       accounts=
   
       for email in ${accounts_to_restore}; do
-        if ! [[ "${exclude_accounts}" =~ (^| )"${email}"($| ) ]]; then
+        if [[ ! "${exclude_accounts}" =~ (^| )"${email}"($| ) ]]; then
           accounts="${accounts} ${email}"
         fi
       done
@@ -220,7 +226,8 @@ function selectAccountsToRestore() {
     fi
   fi
 
-  echo -E ${accounts_to_restore}
+  # echo is used to remove extra spaces
+  echo -En ${accounts_to_restore}
 }
 
 function getAccountDataFileSize() {
@@ -228,7 +235,7 @@ function getAccountDataFileSize() {
   local backup_path="${_backups_path}/accounts/${email}"
   local backup_file="${backup_path}/data.tgz"
 
-  echo -E "$(du -sh "${backup_file}" | awk '{ print $1 }')B"
+  printf "%s" "$(du -sh "${backup_file}" | awk '{ print $1 }')B"
 }
 
 
@@ -267,7 +274,8 @@ function zimbraSetListMember() {
 function zimbraGetAccounts() {
   local cmd=(zmprov --ldap getAllAccounts)
 
-  echo -E $(execZimbraCmd cmd | (grep -vE '^(spam\.|ham\.|virus-quarantine\.|galsync[.@])' || true))
+  # echo is used to remove return chars
+  echo -En $(execZimbraCmd cmd | (grep -vE '^(spam\.|ham\.|virus-quarantine\.|galsync[.@])' || true))
 }
 
 function zimbraCreateAccount() {
@@ -279,8 +287,9 @@ function zimbraCreateAccount() {
   local tmp_password="${RANDOM}${RANDOM}"
   local cmd=
 
+  # grep hides returned id (and Zimbra sometimes displays errors in stdout)
   cmd=(zmprov createAccount "${email}" "${tmp_password}" cn "${cn}" displayName "${displayName}" givenName "${givenName}" zimbraPrefFromDisplay "${displayName}")
-  execZimbraCmd cmd | (grep -v '^\([[:alnum:]]\+-\)\{4\}[[:alnum:]]\+$' || true) # grep hides returned id
+  execZimbraCmd cmd | (grep -v '^\([[:alnum:]]\+-\)\{4\}[[:alnum:]]\+$' || true)
 
   cmd=(zmprov modifyAccount "${email}" userPassword "${hash_password}")
   execZimbraCmd cmd
@@ -307,13 +316,15 @@ function zimbraSetAccountSignature() {
   local type="${3}"
   local content="${4}"
   local field=zimbraPrefMailSignature
+  local cmd=
 
   if [ "${type}" = html ]; then
     field=zimbraPrefMailSignatureHTML
   fi
 
-  local cmd=(zmprov createSignature "${email}" "${name}" "${field}" "${content}")
-  execZimbraCmd cmd | (grep -v '^\([[:alnum:]]\+-\)\{4\}[[:alnum:]]\+$' || true) # grep hides returned id
+  # grep hides returned id (and Zimbra sometimes displays errors in stdout)
+  cmd=(zmprov createSignature "${email}" "${name}" "${field}" "${content}")
+  execZimbraCmd cmd | (grep -v '^\([[:alnum:]]\+-\)\{4\}[[:alnum:]]\+$' || true)
 }
 
 function zimbraSetAccountFilters() {
@@ -342,7 +353,7 @@ function zimbraRestoreDomains() {
   local backup_path="${_backups_path}/admin"
   local backup_file="${backup_path}/domains"
 
-  if ! [ -f "${backup_file}" -a -r "${backup_file}" ]; then
+  if [ ! -f "${backup_file}" -o ! -r "${backup_file}" ]; then
     log_err "File <${backup_file}> is missing, is not a regular file or is not readable"
     exit 1
   fi
@@ -364,7 +375,7 @@ function zimbraRestoreLists() {
   for list_email in ${lists}; do
     local backup_file="${backup_path}/${list_email}"
 
-    if ! [ -f "${backup_file}" -a -r "${backup_file}" ]; then
+    if [ ! -f "${backup_file}" -o ! -r "${backup_file}" ]; then
       log_err "File <${backup_file}> is not a regular file or is not readable"
       exit 1
     fi
@@ -414,19 +425,19 @@ function zimbraRestoreAccountSignatures() {
   local email="${1}"
   local backup_path="${_backups_path}/accounts/${email}/signatures"
 
-  if ! [ -d "${backup_path}" -a -r "${backup_path}" ]; then
+  if [ ! -d "${backup_path}" -o ! -r "${backup_path}" ]; then
     log_err "Path <${backup_path}> is missing, is not a directory or is not readable"
     exit 1
   fi
 
-  local signature_files=$(find "${backup_path}" -mindepth 1)
-
-  for backup_file in ${signature_files}; do
-    if ! [ -f "${backup_file}" -a -r "${backup_file}" ]; then
+  find "${backup_path}" -mindepth 1 | while read backup_file
+  do
+    if [ ! -f "${backup_file}" -a -r "${backup_file}" ]; then
       log_err "File <${backup_file}> is not a regular file or is not readable"
       exit 1
     fi
 
+    # The name is stored in the first line of the file
     local name=$(head -n 1 "${backup_file}")
     local content=$(tail -n +2 "${backup_file}")
     local type=txt
@@ -445,7 +456,7 @@ function zimbraRestoreAccountFilters() {
   local backup_path="${_backups_path}/accounts/${email}"
   local backup_file="${backup_path}/filters"
 
-  if ! [ -f "${backup_file}" -a -r "${backup_file}" ]; then
+  if [ ! -f "${backup_file}" -o ! -r "${backup_file}" ]; then
     log_err "File <${backup_file}> is missing, is not a regular file or is not readable"
     exit 1
   fi
@@ -458,7 +469,7 @@ function zimbraRestoreAccountData() {
   local backup_path="${_backups_path}/accounts/${email}"
   local backup_file="${backup_path}/data.tgz"
 
-  if ! [ -f "${backup_file}" -a -r "${backup_file}" ]; then
+  if [ ! -f "${backup_file}" -o ! -r "${backup_file}" ]; then
     log_err "File <${backup_file}> is missing, is not a regular file or is not readable"
     exit 1
   fi
@@ -499,6 +510,7 @@ trap 'exit 1' INT
 
 while getopts 'm:p:u:b:e:d:h' opt; do
   case "${opt}" in
+       # echos are used to remove extra spaces
     m) _backups_include_accounts=$(echo -E ${_backups_include_accounts} ${OPTARG}) ;;
     x) _backups_exclude_accounts=$(echo -E ${_backups_exclude_accounts} ${OPTARG}) ;;
     b) _backups_path="${OPTARG%/}" ;;
@@ -533,20 +545,20 @@ if [ ! -z "${_backups_include_accounts}" -a ! -z "${_backups_exclude_accounts}" 
   exit 1
 fi
 
-if ! [ -d "${_zimbra_main_path}" -a -x "${_zimbra_main_path}" ]; then
+if [ ! -d "${_zimbra_main_path}" -o ! -x "${_zimbra_main_path}" ]; then
   log_err "Zimbra path <${_zimbra_main_path}> doesn't exist, is not a directory or is not executable"
   exit 1
 fi
 
-if ! [ -d "${_backups_path}" -a -x "${_backups_path}" -a -r "${_backups_path}" ]; then
+if [ ! -d "${_backups_path}" -o ! -x "${_backups_path}" -o ! -r "${_backups_path}" ]; then
   log_err "Backups path <${_backups_path}> doesn't exist, is not a directory or is not executable and readable"
   exit 1
 fi
 
 
-##############
-### SCRIPT ###
-##############
+###################
+### MAIN SCRIPT ###
+###################
 
 log_info "Getting Zimbra main domain"
 _zimbra_install_domain=$(zimbraGetMainDomain)
@@ -562,7 +574,6 @@ ${_exclude_lists} || {
   zimbraRestoreLists
 }
 
-log_debug "Select accounts to restore"
 _accounts_to_restore=$(selectAccountsToRestore "${_backups_include_accounts}" "${_backups_exclude_accounts}")
 
 if [ -z "${_accounts_to_restore}" ]; then
@@ -602,7 +613,7 @@ else
       }
   
       ${_exclude_data} || {
-        log_info "${email}: Restoring data ($(getAccountDataFileSize "${email}"))"
+        log_info "${email}: Restoring data ($(getAccountDataFileSize "${email}") compressed)"
         zimbraRestoreAccountData "${email}"
       }
   
