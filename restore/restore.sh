@@ -34,6 +34,13 @@ function exit_usage() {
       [Default] No exclusion
       [Example] -x foo@example.com -x bar@example.org
 
+    -f
+      Force users to change their password next time they connect after the restore
+
+    -r
+      Reset passwords of the restored accounts
+      Automatically implies -f option
+
   ENVIRONMENT
 
     -b path
@@ -271,6 +278,22 @@ function zimbraSetListMember() {
   execZimbraCmd cmd
 }
 
+function zimbraIsInstallUser() {
+  local email="${1}"
+  [ "${email}" = "admin@${_zimbra_install_domain}" ]
+}
+
+function zimbraIsAccountExisting() {
+  local email="${1}"
+
+  if [ -z "${_existing_accounts}" ]; then
+    _existing_accounts=$(zimbraGetAccounts)
+    log_debug "Already existing accounts: ${_existing_accounts}"
+  fi
+
+  [[ "${_existing_accounts}" =~ (^| )"${email}"($| ) ]]
+}
+
 function zimbraGetAccounts() {
   local cmd=(zmprov --ldap getAllAccounts)
 
@@ -283,15 +306,31 @@ function zimbraCreateAccount() {
   local cn="${2}"
   local givenName="${3}"
   local displayName="${4}"
-  local hash_password="${5}"
-  local tmp_password="${RANDOM}${RANDOM}"
-  local cmd=
+
+  # The hash of the SSL private key is used as a salt
+  local generated_password=$(echo "$(sha256sum ./ssl/zimbra/ca/ca.key)${RANDOM}" | sha256sum | cut -c 1-20)
+  local cmd=(zmprov createAccount "${email}" "${generated_password}" cn "${cn}" displayName "${displayName}" givenName "${givenName}" zimbraPrefFromDisplay "${displayName}")
 
   # grep hides returned id (and Zimbra sometimes displays errors in stdout)
-  cmd=(zmprov createAccount "${email}" "${tmp_password}" cn "${cn}" displayName "${displayName}" givenName "${givenName}" zimbraPrefFromDisplay "${displayName}")
   execZimbraCmd cmd | (grep -v '^\([[:alnum:]]\+-\)\{4\}[[:alnum:]]\+$' || true)
 
-  cmd=(zmprov modifyAccount "${email}" userPassword "${hash_password}")
+  # Save the new password to be able to show it in logs
+  _generated_account_passwords["${email}"]="${generated_password}"
+}
+
+function zimbraUpdateAccountPassword() {
+  local email="${1}"
+  local hash_password="${2}"
+  local cmd=(zmprov modifyAccount "${email}" userPassword "${hash_password}")
+
+  execZimbraCmd cmd
+  unset _generated_account_passwords["${email}"]
+}
+
+function zimbraSetPasswordMustChange() {
+  local email="${1}"
+  local cmd=(zmprov modifyAccount "${email}" zimbraPasswordMustChange TRUE)
+
   execZimbraCmd cmd
 }
 
@@ -299,6 +338,20 @@ function zimbraRemoveAccount() {
   local email="${1}"
   local cmd=(zmprov deleteAccount "${email}")
 
+  execZimbraCmd cmd
+}
+
+function zimbraSetAccountLock() {
+  local email="${1}"
+  local lock="${2}"
+  local status=active
+  local cmd=
+
+  if ${lock}; then
+    status=pending
+  fi
+
+  cmd=(zmprov modifyAccount "${email}" zimbraAccountStatus "${status}")
   execZimbraCmd cmd
 }
 
@@ -363,7 +416,7 @@ function zimbraRestoreDomains() {
       log_debug "Create domain <${domain}>"
       zimbraCreateDomain "${domain}"
     else
-      log_debug "Skip domain <$domain> creation"
+      log_debug "Skip domain <$domain> creation (install domain)"
     fi
   done < "${backup_file}"
 }
@@ -398,13 +451,35 @@ function zimbraRestoreAccount() {
   local cn=$(extractFromAccountSettingsFile "${email}" cn)
   local givenName=$(extractFromAccountSettingsFile "${email}" givenName)
   local displayName=$(extractFromAccountSettingsFile "${email}" displayName)
+
+  zimbraCreateAccount "${email}" "${cn}" "${givenName}" "${displayName}"
+}
+
+function zimbraRestoreAccountPassword() {
+  local email="${1}"
+
+  checkAccountSettingsFile "${email}"
   local userPassword=$(extractFromAccountSettingsFile "${email}" userPassword)
 
-  if [ "${email}" != "admin@${_zimbra_install_domain}" ]; then
-    zimbraCreateAccount "${email}" "${cn}" "${givenName}" "${displayName}" "${userPassword}"
-  else
-    log_debug "Skip account <${email}> creation"
-  fi
+  zimbraUpdateAccountPassword "${email}" "${userPassword}"
+}
+
+function zimbraRestoreAccountForcePasswordChanging() {
+  local email="${1}"
+
+  zimbraSetPasswordMustChange "${email}"
+}
+
+function zimbraRestoreAccountLock() {
+  local email="${1}"
+
+  zimbraSetAccountLock "${email}" true
+}
+
+function zimbraRestoreAccountUnlock() {
+  local email="${1}"
+
+  zimbraSetAccountLock "${email}" false
 }
 
 function zimbraRestoreAccountAliases() {
@@ -416,7 +491,7 @@ function zimbraRestoreAccountAliases() {
     if [ "${alias}" != "root@${_zimbra_install_domain}" -a "${alias}" != "postmaster@${_zimbra_install_domain}" ]; then
       zimbraSetAccountAlias "${email}" "${alias}"
     else
-      log_debug "${email}: Skip alias <${alias}> creation"
+      log_debug "${email}: Skip alias <${alias}> creation (install alias)"
     fi
   done < "${backup_file}"
 }
@@ -484,6 +559,8 @@ function zimbraRestoreAccountData() {
 
 _backups_include_accounts=
 _backups_exclude_accounts=
+_option_force_change_passwords=false
+_option_reset_passwords=false
 _backups_path='/tmp/zimbra_backups'
 _zimbra_main_path='/opt/zimbra'
 _zimbra_user='zimbra'
@@ -500,6 +577,9 @@ _existing_accounts=
 _restoring_account=
 _restore_timer=
 
+# Up to date by zimbraCreateAccount and zimbraUpdateAccountPassword
+declare -A _generated_account_passwords
+
 
 ###############
 ### OPTIONS ###
@@ -508,11 +588,13 @@ _restore_timer=
 trap 'trap_exit $LINENO' EXIT TERM ERR
 trap 'exit 1' INT
 
-while getopts 'm:p:u:b:e:d:h' opt; do
+while getopts 'm:x:frb:p:u:e:d:h' opt; do
   case "${opt}" in
-       # echos are used to remove extra spaces
     m) _backups_include_accounts=$(echo -E ${_backups_include_accounts} ${OPTARG}) ;;
     x) _backups_exclude_accounts=$(echo -E ${_backups_exclude_accounts} ${OPTARG}) ;;
+    f) _option_force_change_passwords=true ;;
+    r) _option_reset_passwords=true
+       _option_force_change_passwords=true ;;
     b) _backups_path="${OPTARG%/}" ;;
     p) _zimbra_main_path="${OPTARG%/}" ;;
     u) _zimbra_user="${OPTARG}" ;;
@@ -581,21 +663,42 @@ if [ -z "${_accounts_to_restore}" ]; then
 else
   log_debug "Accounts to restore: ${_accounts_to_restore}"
 
-  _existing_accounts=$(zimbraGetAccounts)
-  log_debug "Already existing accounts: ${_existing_accounts}"
-
   # Restore accounts
   for email in ${_accounts_to_restore}; do
-    if [[ "${_existing_accounts}" =~ (^| )"${email}"($| ) ]]; then
+    if zimbraIsAccountExisting "${email}"; then
       log_warn "Skip account <${email}> (already exists in Zimbra)"
     else
       resetAccountRestoreDuration
 
-      log_info "Creating account <${email}>"
-      zimbraRestoreAccount "${email}"
+      # Create account
+      if zimbraIsInstallUser "${email}"; then
+        log_debug "Skip account <${email}> creation (install user)"
+      else
+        log_info "Creating account <${email}>"
+        zimbraRestoreAccount "${email}"
 
-      _restoring_account="${email}"
+        _restoring_account="${email}"
+
+        # Restore the password or keep the generated one
+        if ${_option_reset_passwords}; then
+          log_info "${email}: New password is ${_generated_account_passwords["${email}"]}"
+        else
+          log_info "${email}: Restore former password"
+          zimbraRestoreAccountPassword "${email}"
+        fi
+
+        # Force password changing
+        if ${_option_force_change_passwords}; then
+          log_info "${email}: Force user to change the password next time they log in"
+          zimbraRestoreAccountForcePasswordChanging "${email}"
+        fi
+      fi
+
+      # Restore other settings and data
       log_info "Restoring account <${email}>"
+
+      log_info "${email}: Locking the account"
+      zimbraRestoreAccountLock "${email}"
   
       ${_exclude_aliases} || {
         log_info "${email}: Restoring aliases"
@@ -616,6 +719,9 @@ else
         log_info "${email}: Restoring data ($(getAccountDataFileSize "${email}") compressed)"
         zimbraRestoreAccountData "${email}"
       }
+
+      log_info "${email}: Unlocking the account"
+      zimbraRestoreAccountUnlock "${email}"
   
       showAccountRestoreDuration
       _restoring_account=

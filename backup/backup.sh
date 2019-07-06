@@ -40,6 +40,11 @@ function exit_usage() {
       [Default] No exclusion
       [Example] -s /Briefcase/movies -s '/Inbox/list-.*' -s '.*/nobackup'
 
+    -l
+      Lock the accounts just before starting to backup them
+      Locks are NOT removed after the backup: useful when reinstalling the server
+      [Default] Not locked
+
   ENVIRONMENT
 
     -b path
@@ -344,6 +349,13 @@ function zimbraGetListMembers() {
   execZimbraCmd cmd
 }
 
+function zimbraSetAccountLock() {
+  local email="${1}"
+  local cmd=(zmprov modifyAccount "${email}" zimbraAccountStatus pending)
+
+  execZimbraCmd cmd
+}
+
 function zimbraGetAccounts() {
   local cmd=(zmprov --ldap getAllAccounts)
 
@@ -441,6 +453,12 @@ function zimbraBackupLists() {
     log_debug "Backup members of ${list_email}"
     zimbraGetListMembers "${list_email}" | (grep -F @ | grep -v '^#' || true) > "${backup_file}"
   done
+}
+
+function zimbraBackupAccountLock() {
+  local email="${1}"
+
+  zimbraSetAccountLock "${email}"
 }
 
 function zimbraBackupAccountSettings() {
@@ -562,6 +580,7 @@ function zimbraBackupAccountData() {
 
 _backups_include_accounts=
 _backups_exclude_accounts=
+_backups_lock_accounts=false
 _backups_path='/tmp/zimbra_backups'
 _zimbra_main_path='/opt/zimbra'
 _zimbra_user='zimbra'
@@ -590,12 +609,12 @@ declare -a _backups_exclude_data_regexes
 trap 'trap_exit $LINENO' EXIT TERM ERR
 trap 'exit 1' INT
 
-while getopts 'm:x:s:p:u:g:b:e:d:h' opt; do
+while getopts 'm:x:s:lb:p:u:g:e:d:h' opt; do
   case "${opt}" in
-       # echos are used to remove extra spaces
     m) _backups_include_accounts=$(echo -En ${_backups_include_accounts} ${OPTARG}) ;;
     x) _backups_exclude_accounts=$(echo -En ${_backups_exclude_accounts} ${OPTARG}) ;;
     s) _backups_exclude_data_regexes+=("${OPTARG%/}") ;;
+    l) _backups_lock_accounts=true ;;
     b) _backups_path="${OPTARG%/}" ;;
     p) _zimbra_main_path="${OPTARG%/}" ;;
     u) _zimbra_user="${OPTARG}" ;;
@@ -683,12 +702,17 @@ else
   # Backup accounts
   for email in ${_accounts_to_backup}; do
     if [ -e "${_backups_path}/accounts/${email}" ]; then
-      log_warn "Skip account <${email}> (the folder <${_backups_path}/accounts/${email}> already exists)"
+      log_warn "Skip account <${email}> (<${_backups_path}/accounts/${email}/> already exists)"
     else
       resetAccountBackupDuration
 
       _backuping_account="${email}"
       log_info "Backuping account <${email}>"
+
+      ${_backups_lock_accounts} || {
+        log_info "${email}: Locking the account"
+        zimbraBackupAccountLock "${email}"
+      }
   
       ${_exclude_settings} || {
         log_info "${email}: Backuping settings file"
