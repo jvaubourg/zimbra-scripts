@@ -7,7 +7,7 @@
 ## HELPERS ##
 #############
 
-source /usr/local/bin/zimbra-helpers.sh.inc
+source ./zimbra-helpers.sh.inc
 
 function exit_usage() {
   local status="${1}"
@@ -283,7 +283,7 @@ function zimbraBackupLists() {
 function zimbraBackupAccountLock() {
   local email="${1}"
 
-  zimbraSetAccountLock "${email}"
+  zimbraSetAccountLock "${email}" true
 }
 
 function zimbraBackupAccountSettings() {
@@ -406,7 +406,6 @@ function zimbraBackupAccountData() {
 _backups_include_accounts=
 _backups_exclude_accounts=
 _backups_lock_accounts=false
-_backups_path='/tmp/zimbra_backups'
 _exclude_admins=false
 _exclude_domains=false
 _exclude_lists=false

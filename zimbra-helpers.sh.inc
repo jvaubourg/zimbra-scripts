@@ -7,13 +7,16 @@ set -o nounset
 ### GLOBAL VARIABLES ###
 ########################
 
+_backups_path='/tmp/zimbra_backups'
 _zimbra_main_path='/opt/zimbra'
 _zimbra_user='zimbra'
 _zimbra_group='zimbra'
-_zimbra_install_domain=
 _existing_accounts=
-_backup_timer=
+_process_timer=
 _debug_mode=0
+
+# Use zimbraGetMainDomain
+_zimbra_install_domain=
 
 
 #############
@@ -51,11 +54,11 @@ trap 'trap_exit $LINENO' EXIT TERM ERR
 trap 'exit 1' INT
 
 function resetAccountProcessDuration() {
-  _backup_timer="${SECONDS}"
+  _process_timer="${SECONDS}"
 }
 
 function showAccountProcessDuration {
-  local duration_secs=$(( SECONDS - _backup_timer ))
+  local duration_secs=$(( SECONDS - _process_timer ))
   local duration_fancy=$(date -ud "0 ${duration_secs} seconds" +%T)
 
   log_info "Time used for processing this account: ${duration_fancy}"
@@ -218,13 +221,6 @@ function zimbraIsAccountExisting() {
 ##
 ## ZIMBRA SETTERS
 ##
-
-function zimbraSetAccountLock() {
-  local email="${1}"
-  local cmd=(zmprov modifyAccount "${email}" zimbraAccountStatus pending)
-
-  execZimbraCmd cmd
-}
 
 function zimbraCreateDomain() {
   local domain="${1}"

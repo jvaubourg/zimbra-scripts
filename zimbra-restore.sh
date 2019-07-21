@@ -7,7 +7,7 @@
 ## HELPERS ##
 #############
 
-source /usr/local/bin/zimbra-helpers.sh.inc
+source ./zimbra-helpers.sh.inc
 
 function exit_usage() {
   local status="${1}"
@@ -184,12 +184,6 @@ function getAccountDataFileSize() {
 }
 
 
-######################
-## ZIMBRA CLI & API ##
-######################
-
-
-
 #############
 ## RESTORE ##
 #############
@@ -353,18 +347,14 @@ _backups_include_accounts=
 _backups_exclude_accounts=
 _option_force_change_passwords=false
 _option_reset_passwords=false
-_backups_path='/tmp/zimbra_backups'
 _exclude_domains=false
 _exclude_lists=false
 _exclude_aliases=false
 _exclude_signatures=false
 _exclude_filters=false
 _exclude_data=false
-_debug_mode=0
-_zimbra_install_domain=
 _accounts_to_restore=
 _restoring_account=
-_restore_timer=
 
 # Up to date by zimbraCreateAccount and zimbraUpdateAccountPassword
 declare -A _generated_account_passwords
