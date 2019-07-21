@@ -3,14 +3,11 @@
 # CC-BY-SA (2019)
 # https://github.com/jvaubourg/zimbra-scripts
 
-set -o errtrace
-set -o pipefail
-set -o nounset
-
-
 #############
 ## HELPERS ##
 #############
+
+source /usr/local/bin/zimbra-helpers.sh.inc
 
 function exit_usage() {
   local status="${1}"
@@ -118,76 +115,12 @@ USAGE
   exit "${status}"
 }
 
-function log() { printf '%s# %s\n' "$(date +'%F %T')" "${1}"; }
-function log_debug() { ([ "${_debug_mode}" -ge 1 ] && log "[DEBUG] ${1}" >&2) || true; }
-function log_info() { log "[INFO] ${1}"; }
-function log_warn() { log "[WARN] ${1}" >&2; }
-function log_err() { log "[ERR] ${1}" >&2; }
-
-# Warning: traps can be thrown inside command substitutions $(...) and don't stop the main process in this case
-function trap_exit() {
-  local status="${?}"
-  local line="${1}"
-
-  trap - EXIT TERM ERR INT
-
-  if [ "${status}" -ne 0 ]; then
-    if [ "${line}" -gt 1 ]; then
-      log_err "There was an unexpected interruption on line ${line}"
-    fi
-
-    log_err "Backup aborted"
-    cleanFailedBackup
-  else
-    log_info "Backup done"
-  fi
-
-  exit "${status}"
-}
-
-function resetAccountBackupDuration() {
-  _backup_timer="${SECONDS}"
-}
-
-function showAccountBackupDuration {
-  local duration_secs=$(( SECONDS - _backup_timer ))
-  local duration_fancy=$(date -ud "0 ${duration_secs} seconds" +%T)
-
-  log_info "Time used for backuping this account: ${duration_fancy}"
-}
-
-function showFullBackupDuration {
-  local duration_fancy=$(date -ud "0 ${SECONDS} seconds" +%T)
-
-  log_info "Time used for backuping everything: ${duration_fancy}"
-}
-
-function escapeGrepStringRegexChars() {
-  local search="${1}"
-  printf '%s' "$(printf '%s' "${search}" | sed 's/[.[\*^$]/\\&/g')"
-}
-
-function execZimbraCmd() {
-  # References (namerefs) are not supported by Bash prior to 4.4 (CentOS currently uses 4.3)
-  # For now we expect that the parent function defined a cmd variable
-  # local -n command="${1}"
-
-  local path="PATH=/sbin:/bin:/usr/sbin:/usr/bin:${_zimbra_main_path}/bin:${_zimbra_main_path}/libexec"
-  
-  if [ "${_debug_mode}" -ge 2 ]; then
-    log_debug "CMD: ${cmd[*]}"
-  fi
-
-  # Using sudo instead of su -c and an array instead of a string prevent code injections
-  sudo -u "${_zimbra_user}" env "${path}" "${cmd[@]}"
-}
-
 
 ####################
 ## CORE FUNCTIONS ##
 ####################
 
-function cleanFailedBackup() {
+function cleanFailedProcess() {
   log_debug "Cleaning after fail"
 
   if [ ! -z "${_backuping_account}" -a -d "${_backups_path}/accounts/${_backuping_account}" ]; then
@@ -215,12 +148,6 @@ function extractFromAccountSettingsFile() {
   local value=$((grep "^${field}:" "${settings_file}" || true) | sed "s/^${field}: //")
 
   printf '%s' "${value}"
-}
-
-function setZimbraPermissions() {
-  local folder="${1}"
-
-  chown -R "${_zimbra_user}:${_zimbra_group}" "${folder}"
 }
 
 function selectAccountsToBackup() {
@@ -317,108 +244,6 @@ function getAccountIncludeDataSize() {
   local include_size_human=$(numfmt --to=iec --suffix=B "$(( data_size_bytes - exclude_size_bytes ))")
 
   printf '%s' "${include_size_human}"
-}
-
-
-######################
-## ZIMBRA CLI & API ##
-######################
-
-function zimbraGetAdminAccounts() {
-  local cmd=(zmprov --ldap getAllAdminAccounts)
-
-  execZimbraCmd cmd
-}
-
-function zimbraGetDomains() {
-  local cmd=(zmprov --ldap getAllDomains)
-
-  execZimbraCmd cmd
-}
-
-function zimbraGetLists() {
-  local cmd=(zmprov --ldap getAllDistributionLists)
-
-  execZimbraCmd cmd
-}
-
-function zimbraGetListMembers() {
-  local list_email="${1}"
-  local cmd=(zmprov --ldap getDistributionListMembership "${list_email}")
-
-  execZimbraCmd cmd
-}
-
-function zimbraSetAccountLock() {
-  local email="${1}"
-  local cmd=(zmprov modifyAccount "${email}" zimbraAccountStatus pending)
-
-  execZimbraCmd cmd
-}
-
-function zimbraGetAccounts() {
-  local cmd=(zmprov --ldap getAllAccounts)
-
-  # echo is used to remove return chars
-  echo -En $(execZimbraCmd cmd | (grep -vE '^(spam\.|ham\.|virus-quarantine\.|galsync[.@])' || true))
-}
-
-function zimbraGetAccountSettings() {
-  local email="${1}"
-  local cmd=(zmprov --ldap getAccount "${email}")
-
-  execZimbraCmd cmd
-}
-
-function zimbraGetAccountAliases() {
-  local email="${1}"
-
-  extractFromAccountSettingsFile "${email}" zimbraMailAlias
-}
-
-function zimbraGetAccountSignatures() {
-  local email="${1}"
-  local cmd=(zmprov getSignatures "${email}")
-
-  execZimbraCmd cmd
-}
-
-function zimbraGetAccountFilters() {
-  local email="${1}"
-  local cmd=(zmprov getAccount "${email}" zimbraMailSieveScript)
-
-  # 1d removes the comment on the first line
-  execZimbraCmd cmd | sed '1d;s/^zimbraMailSieveScript: //'
-}
-
-function zimbraGetAccountFoldersList() {
-  local email="${1}"
-  local cmd=(zmmailbox --zadmin --mailbox "${email}" getAllFolders)
-
-  execZimbraCmd cmd | awk '/\// { print $5 }'
-}
-
-function zimbraGetAccountDataSize() {
-  local email="${1}"
-  local cmd=(zmmailbox --zadmin --mailbox "${email}" getMailboxSize)
-
-  execZimbraCmd cmd | tr -d ' '
-}
-
-function zimbraGetAccountData() {
-  local email="${1}"
-  local filter_query="${2}"
-  local cmd=(zmmailbox --zadmin --mailbox "${email}" getRestURL "//?fmt=tgz${filter_query}")
-
-  execZimbraCmd cmd
-}
-
-function zimbraGetFolderAttributes() {
-  local email="${1}"
-  local path="${2}"
-  local cmd=(zmmailbox --zadmin --mailbox "${email}" getFolder "${path}")
-
-  execZimbraCmd cmd
 }
 
 
@@ -582,9 +407,6 @@ _backups_include_accounts=
 _backups_exclude_accounts=
 _backups_lock_accounts=false
 _backups_path='/tmp/zimbra_backups'
-_zimbra_main_path='/opt/zimbra'
-_zimbra_user='zimbra'
-_zimbra_group='zimbra'
 _exclude_admins=false
 _exclude_domains=false
 _exclude_lists=false
@@ -593,10 +415,8 @@ _exclude_aliases=false
 _exclude_signatures=false
 _exclude_filters=false
 _exclude_data=false
-_debug_mode=0
 _accounts_to_backup=
 _backuping_account=
-_backup_timer=
 
 # Using an array prevents issues with spaces in regexes
 declare -a _backups_exclude_data_regexes
@@ -605,9 +425,6 @@ declare -a _backups_exclude_data_regexes
 ###############
 ### OPTIONS ###
 ###############
-
-trap 'trap_exit $LINENO' EXIT TERM ERR
-trap 'exit 1' INT
 
 while getopts 'm:x:s:lb:p:u:g:e:d:h' opt; do
   case "${opt}" in
@@ -704,7 +521,7 @@ else
     if [ -e "${_backups_path}/accounts/${email}" ]; then
       log_warn "Skip account <${email}> (<${_backups_path}/accounts/${email}/> already exists)"
     else
-      resetAccountBackupDuration
+      resetAccountProcessDuration
 
       _backuping_account="${email}"
       log_info "Backuping account <${email}>"
@@ -739,13 +556,13 @@ else
         zimbraBackupAccountData "${email}"
       }
   
-      showAccountBackupDuration
+      showAccountProcessDuration
       _backuping_account=
     fi
   done
 fi
 
 setZimbraPermissions "${_backups_path}"
-showFullBackupDuration
+showFullProcessDuration
 
 exit 0
