@@ -187,7 +187,6 @@ function selectAccountDataPathsToExclude() {
   touch "${backup_file}"
 
   # Will be used to restore the (empty) folders and subfolders
-  install -o "${_zimbra_user}" -g "${_zimbra_group}" -d "${backup_path}_full"
   touch "${backup_file}_full"
 
   if [ "${#_backups_exclude_data_regexes[@]}" -gt 0 ]; then
