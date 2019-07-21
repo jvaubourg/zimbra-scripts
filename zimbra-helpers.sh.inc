@@ -1,3 +1,7 @@
+# Julien Vaubourg <ju.vg>
+# CC-BY-SA (2019)
+# https://github.com/jvaubourg/zimbra-scripts
+
 set -o errtrace
 set -o pipefail
 set -o nounset
@@ -338,4 +342,13 @@ function zimbraSetAccountData() {
   local cmd=(zmmailbox --zadmin --mailbox "${email}" -t 0 postRestURL --url https://localhost:8443 '/?fmt=tgz&resolve=reset' "${backup_file}")
 
   execZimbraCmd cmd
+}
+
+function zimbraCreateDataFolder() {
+  local email="${1}"
+  local folder="${2}"
+  local cmd=(zmmailbox --zadmin --mailbox "${email}" createFolder "${folder}")
+
+  # grep hides returned id (and Zimbra sometimes displays errors in stdout)
+  execZimbraCmd cmd | (grep -v '^[[:alnum:]]\+$' || true)
 }

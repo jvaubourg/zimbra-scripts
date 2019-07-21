@@ -338,6 +338,21 @@ function zimbraRestoreAccountData() {
   zimbraSetAccountData "${email}" "${backup_file}"
 }
 
+function zimbraRestoreAccountDataExcludedPaths() {
+  local email="${1}"
+  local backup_path="${_backups_path}/accounts/${email}"
+  local backup_file="${backup_path}/excluded_data_paths_full"
+
+  if [ ! -f "${backup_file}" -o ! -r "${backup_file}" ]; then
+    log_err "File <${backup_file}> is missing, is not a regular file or is not readable"
+    exit 1
+  fi
+
+  while read path; do
+    zimbraCreateDataFolder "${email}" "${path}"
+  done < "${backup_file}"
+}
+
 
 ########################
 ### GLOBAL VARIABLES ###
@@ -494,6 +509,9 @@ else
       ${_exclude_data} || {
         log_info "${email}: Restoring data ($(getAccountDataFileSize "${email}") compressed)"
         zimbraRestoreAccountData "${email}"
+
+        log_debug "${email}: Restore excluded paths as empty folders"
+        zimbraRestoreAccountDataExcludedPaths "${email}"
       }
 
       log_info "${email}: Unlocking the account"
