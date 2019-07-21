@@ -525,7 +525,7 @@ else
       _backuping_account="${email}"
       log_info "Backuping account <${email}>"
 
-      ${_backups_lock_accounts} || {
+      ${_backups_lock_accounts} || {
         log_info "${email}: Locking the account"
         zimbraBackupAccountLock "${email}"
       }
