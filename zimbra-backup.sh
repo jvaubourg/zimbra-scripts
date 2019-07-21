@@ -186,16 +186,21 @@ function selectAccountDataPathsToExclude() {
   install -o "${_zimbra_user}" -g "${_zimbra_group}" -d "${backup_path}"
   touch "${backup_file}"
 
+  # Will be used to restore the (empty) folders and subfolders
+  install -o "${_zimbra_user}" -g "${_zimbra_group}" -d "${backup_path}_full"
+  touch "${backup_file}_full"
+
   if [ "${#_backups_exclude_data_regexes[@]}" -gt 0 ]; then
     local folders=$(zimbraGetAccountFoldersList "${email}")
   
     for regex in "${_backups_exclude_data_regexes[@]}"; do
-      local selected_folders=$(printf '%s' "${folders}" | (grep -- "^${regex}\$" || true))
+      local selected_folders=$(printf '%s' "${folders}" | (grep -- "^${regex}\\(\$\\|/.*\\)" || true))
+      printf '%s\n' "${selected_folders}" > "${backup_file}_full"
 
       if [ ! -z "${selected_folders}" ]; then
-        log_debug "${email}: Raw list of the folders selected to be excluded: $(echo ${selected_folders})"
+        log_debug "${email}: Raw list of the folders selected to be excluded: $(echo -En ${selected_folders})"
 
-        if [ "$(printf '%s' "${selected_folders}" | wc -l)" -gt 1 ]; then
+        if [ "$(printf '%s\n' "${selected_folders}" | wc -l)" -gt 1 ]; then
 
           # We need to be sure that some selected folders are not included in other ones
           while [ ! -z "${selected_folders}" ]; do
@@ -203,14 +208,14 @@ function selectAccountDataPathsToExclude() {
             local first_escaped=$(escapeGrepStringRegexChars "${first}")
 
             # The list of folders is sorted by Zimbra so the first path cannot be included in another one
-            log_debug "${email}: Data folder <${first}> will not be backuped"
+            log_debug "${email}: Folder <${first}> will be excluded"
             printf '%s\n' "${first}" >> "${backup_file}"
 
             # Remove the saved folder and all of its subfolders from the selection and start again with the parent loop
             selected_folders=$(printf '%s' "${selected_folders}" | (grep -v -- "^${first_escaped}\\(\$\\|/\\)" || true))
           done
         else
-          log_debug "${email}: Data folder <${selected_folders}> will not be backuped"
+          log_debug "${email}: Folder <$(echo -En ${selected_folders})> will be excluded"
           printf '%s\n' "${selected_folders}" > "${backup_file}"
         fi
       fi
