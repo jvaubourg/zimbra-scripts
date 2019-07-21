@@ -23,7 +23,7 @@ _zimbra_install_domain=
 ## GENERAL ##
 #############
 
-function log() { printf '%s# %s\n' "$(date +'%F %T')" "${1}"; }
+function log() { printf '%s| %s\n' "$(date +'%F %T')" "${1}"; }
 function log_debug() { ([ "${_debug_mode}" -ge 1 ] && log "[DEBUG] ${1}" >&2) || true; }
 function log_info() { log "[INFO] ${1}"; }
 function log_warn() { log "[WARN] ${1}" >&2; }
