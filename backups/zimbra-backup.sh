@@ -190,8 +190,6 @@ function selectAccountDataPathsToExclude() {
 
   install -o "${_zimbra_user}" -g "${_zimbra_group}" -d "${backup_path}"
   touch "${backup_file}"
-
-  # Will be used to restore the (empty) folders and subfolders
   touch "${backup_file}_full"
 
   if [ "${#_backups_exclude_data_regexes[@]}" -gt 0 ]; then
@@ -199,10 +197,12 @@ function selectAccountDataPathsToExclude() {
   
     for regex in "${_backups_exclude_data_regexes[@]}"; do
       local selected_folders=$(printf '%s' "${folders}" | (grep -- "^${regex}\\(\$\\|/.*\\)" || true))
-      printf '%s\n' "${selected_folders}" > "${backup_file}_full"
 
       if [ ! -z "${selected_folders}" ]; then
         log_debug "${email}: Raw list of the folders selected to be excluded: $(echo -En ${selected_folders})"
+
+        # Will be used to restore the (empty) folders and subfolders
+        printf '%s\n' "${selected_folders}" > "${backup_file}_full"
 
         if [ "$(printf '%s\n' "${selected_folders}" | wc -l)" -gt 1 ]; then
 
