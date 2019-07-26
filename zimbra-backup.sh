@@ -7,7 +7,7 @@
 ## HELPERS ##
 #############
 
-source ./zimbra-helpers.sh.inc
+source /usr/share/zimbra-scripts/zimbra-common.sh
 
 function exit_usage() {
   local status="${1}"

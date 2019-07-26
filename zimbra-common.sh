@@ -2,10 +2,6 @@
 # CC-BY-SA (2019)
 # https://github.com/jvaubourg/zimbra-scripts
 
-set -o errtrace
-set -o pipefail
-set -o nounset
-
 
 ########################
 ### GLOBAL VARIABLES ###
@@ -19,7 +15,7 @@ _existing_accounts=
 _process_timer=
 _debug_mode=0
 
-# Use zimbraGetMainDomain
+# Will be filled with zimbraGetMainDomain
 _zimbra_install_domain=
 
 
