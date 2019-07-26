@@ -2,10 +2,12 @@
 # CC-BY-SA (2019)
 # https://github.com/jvaubourg/zimbra-scripts
 
+
 ########################
 ### GLOBAL VARIABLES ###
 ########################
 
+# Default values (can be changed with parent script options)
 _backups_path='/tmp/zimbra_backups'
 _zimbra_main_path='/opt/zimbra'
 _zimbra_user='zimbra'
@@ -49,9 +51,6 @@ function trap_exit() {
   exit "${status}"
 }
 
-trap 'trap_exit $LINENO' EXIT TERM ERR
-trap 'exit 1' INT
-
 function resetAccountProcessDuration() {
   _process_timer="${SECONDS}"
 }
@@ -69,8 +68,7 @@ function showFullProcessDuration {
   log_info "Time used for processing everything: ${duration_fancy}"
 }
 
-function escapeGrepStringRegexChars() {
-  local search="${1}"
+function escapeGrepStringRegexChars() to  local search="${1}"
   printf '%s' "$(printf '%s' "${search}" | sed 's/[.[\*^$]/\\&/g')"
 }
 
@@ -93,6 +91,12 @@ function execZimbraCmd() {
 
   # Using sudo instead of su -c and an array instead of a string prevent code injections
   sudo -u "${_zimbra_user}" env "${path}" "${cmd[@]}"
+}
+
+# Hides IDs returned by Zimbra when creating an object
+# (Zimbra sometimes displays errors directly to stdout)
+function hideReturnedId() {
+  grep -v '^[a-f0-9-]\+$' || true
 }
 
 
@@ -225,14 +229,14 @@ function zimbraCreateDomain() {
   local domain="${1}"
   local cmd=(zmprov createDomain "${domain}" zimbraAuthMech zimbra)
 
-  execZimbraCmd cmd
+  execZimbraCmd cmd | hideReturnedId
 }
 
 function zimbraCreateList() {
   local list_email="${1}"
   local cmd=(zmprov createDistributionList "${list_email}")
 
-  execZimbraCmd cmd
+  execZimbraCmd cmd | hideReturnedId
 }
 
 function zimbraSetListMember() {
@@ -250,11 +254,10 @@ function zimbraCreateAccount() {
   local displayName="${4}"
 
   # The hash of the SSL private key is used as a salt
-  local generated_password=$(echo "$(sha256sum ./ssl/zimbra/ca/ca.key)${RANDOM}" | sha256sum | cut -c 1-20)
+  local generated_password=$(echo "$(sha256sum ${_zimbra_main_path}/ssl/zimbra/ca/ca.key)${RANDOM}" | sha256sum | cut -c 1-20)
   local cmd=(zmprov createAccount "${email}" "${generated_password}" cn "${cn}" displayName "${displayName}" givenName "${givenName}" zimbraPrefFromDisplay "${displayName}")
 
-  # grep hides returned id (and Zimbra sometimes displays errors in stdout)
-  execZimbraCmd cmd | (grep -v '^\([[:alnum:]]\+-\)\{4\}[[:alnum:]]\+$' || true)
+  execZimbraCmd cmd | hideReturnedId
 
   # Save the new password to be able to show it in logs
   _generated_account_passwords["${email}"]="${generated_password}"
@@ -317,9 +320,8 @@ function zimbraSetAccountSignature() {
     field=zimbraPrefMailSignatureHTML
   fi
 
-  # grep hides returned id (and Zimbra sometimes displays errors in stdout)
   cmd=(zmprov createSignature "${email}" "${name}" "${field}" "${content}")
-  execZimbraCmd cmd | (grep -v '^\([[:alnum:]]\+-\)\{4\}[[:alnum:]]\+$' || true)
+  execZimbraCmd cmd | hideReturnedId
 }
 
 function zimbraSetAccountFilters() {
@@ -344,6 +346,5 @@ function zimbraCreateDataFolder() {
   local folder="${2}"
   local cmd=(zmmailbox --zadmin --mailbox "${email}" createFolder "${folder}")
 
-  # grep hides returned id (and Zimbra sometimes displays errors in stdout)
-  execZimbraCmd cmd | (grep -v '^[[:alnum:]]\+$' || true)
+  execZimbraCmd cmd | hideReturnedId
 }

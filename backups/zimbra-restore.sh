@@ -3,6 +3,11 @@
 # CC-BY-SA (2019)
 # https://github.com/jvaubourg/zimbra-scripts
 
+set -o errtrace
+set -o pipefail
+set -o nounset
+
+
 #############
 ## HELPERS ##
 #############
@@ -373,6 +378,10 @@ _restoring_account=
 
 # Up to date by zimbraCreateAccount and zimbraUpdateAccountPassword
 declare -A _generated_account_passwords
+
+# Traps
+trap 'trap_exit $LINENO' EXIT TERM ERR
+trap 'exit 1' INT
 
 
 ###############

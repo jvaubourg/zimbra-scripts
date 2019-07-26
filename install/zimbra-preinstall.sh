@@ -88,7 +88,7 @@ systemctl enable yum-cron
 systemctl start yum-cron
 
 # Prepare Zimbra install
-yum -y install sudo libidn gmp perl perl-core nc
+yum -y install sudo libidn gmp perl perl-core nc htop
 yum -y remove postfix
 systemctl stop firewalld
 
@@ -97,7 +97,8 @@ echo "New password for root:"
 passwd root
 
 # Install Zimbra
-#
+echo "You should now install Zimbra"
+
 # https://zimbra.org/download/zimbra-collaboration
 # LAST: https://files.zimbra.com/downloads/8.8.15_GA/zcs-8.8.15_GA_3829.RHEL7_64.20190718141144.tgz
 # <zimbradir>/install.sh

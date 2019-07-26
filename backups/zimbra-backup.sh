@@ -3,6 +3,11 @@
 # CC-BY-SA (2019)
 # https://github.com/jvaubourg/zimbra-scripts
 
+set -o errtrace
+set -o pipefail
+set -o nounset
+
+
 #############
 ## HELPERS ##
 #############
@@ -423,6 +428,10 @@ _backuping_account=
 
 # Using an array prevents issues with spaces in regexes
 declare -a _backups_exclude_data_regexes
+
+# Traps
+trap 'trap_exit $LINENO' EXIT TERM ERR
+trap 'exit 1' INT
 
 
 ###############

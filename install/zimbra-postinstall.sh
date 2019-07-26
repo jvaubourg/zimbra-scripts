@@ -14,7 +14,9 @@ systemctl start firewalld
 
 # Zimbra scripts
 yum -y install git
-git -C /usr/share/ clone https://github.com/jvaubourg/zimbra-scripts.git
+pushd /usr/share/
+  git clone https://github.com/jvaubourg/zimbra-scripts.git
+popd
 source /usr/share/zimbra-scripts/backups/zimbra-common.inc.sh
 
 # Enable IPv6
@@ -60,6 +62,9 @@ execZimbraCmd cmd
 
 # Backups
 ln -s /usr/share/zimbra-scripts/backups/zimbra-backup.sh /usr/local/bin/
-ln -s /usr/share/zimbra-scripts/backups/zimbra-restore/usr/local/bin/
+ln -s /usr/share/zimbra-scripts/backups/zimbra-restore.sh /usr/local/bin/
+
+# Reboot
+echo "You should now reboot the system"
 
 exit 0
