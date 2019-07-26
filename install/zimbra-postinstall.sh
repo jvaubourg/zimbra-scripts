@@ -14,8 +14,7 @@ systemctl start firewalld
 
 # Zimbra scripts
 yum -y install git
-mkdir -p /usr/share/zimbra-scripts/
-git clone https://github.com/jvaubourg/zimbra-scripts.git -C /usr/share/
+git -C /usr/share/ clone https://github.com/jvaubourg/zimbra-scripts.git
 source /usr/share/zimbra-scripts/backups/zimbra-common.inc.sh
 
 # Enable IPv6
@@ -60,7 +59,7 @@ cmd=(zmprov modifyConfig +zimbraResponseHeader 'Strict-Transport-Security: max-a
 execZimbraCmd cmd
 
 # Backups
-ln -s /usr/share/zimbra-scripts/zimbra-backup.sh /usr/local/bin/
-ln -s /usr/share/zimbra-scripts/zimbra-restore/usr/local/bin/
+ln -s /usr/share/zimbra-scripts/backups/zimbra-backup.sh /usr/local/bin/
+ln -s /usr/share/zimbra-scripts/backups/zimbra-restore/usr/local/bin/
 
 exit 0
