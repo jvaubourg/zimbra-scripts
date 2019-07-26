@@ -2,7 +2,6 @@
 # CC-BY-SA (2019)
 # https://github.com/jvaubourg/zimbra-scripts
 
-
 ########################
 ### GLOBAL VARIABLES ###
 ########################
