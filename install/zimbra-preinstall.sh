@@ -6,8 +6,8 @@
 set -xeu
 
 # Variables and functions with confidential information
-# You have to fill it with real data
-source ./zimbra-install_secrets.sh
+# You have to fill it with real data and to put SSH pub keys in files_secrets/
+source ./zimbra-install_secrets.conf.sh
 
 function replace_placeholders() {
   local file="${1}"
@@ -29,7 +29,7 @@ function create_user() {
   useradd "${user}" || true
   mkdir -m 0700 "/home/${user}/.ssh"
   chown "${user}:" "/home/${user}/.ssh"
-  install -b -m 0600 -o "${user}" -g "${user}" "${FILES}/home/${user}/.ssh/authorized_keys" "/home/${user}/.ssh"
+  install -b -m 0600 -o "${user}" -g "${user}" "${FILES_SECRETS}/home/${user}/.ssh/authorized_keys" "/home/${user}/.ssh"
 }
 
 # Users

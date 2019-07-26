@@ -1,4 +1,5 @@
 FILES=/tmp/zimbra_scripts/install/files
+FILES_SECRETS=/tmp/zimbra_scripts/install/files_secrets
 HOSTNAME=mail
 MAIN_DOMAIN=example.com
 WIRED_DEV=eth0

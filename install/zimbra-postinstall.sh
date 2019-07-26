@@ -7,7 +7,7 @@ set -xeu
 
 # Variables and functions with confidential information
 # You have to fill it with real data
-source ./zimbra-install_secrets.sh
+source ./zimbra-install_secrets.conf.sh
 
 # Firewall
 systemctl start firewalld
@@ -16,7 +16,7 @@ systemctl start firewalld
 yum -y install git
 mkdir -p /usr/share/zimbra-scripts/
 git clone https://github.com/jvaubourg/zimbra-scripts.git -C /usr/share/
-source /usr/share/zimbra-scripts/backups/zimbra-common.sh
+source /usr/share/zimbra-scripts/backups/zimbra-common.inc.sh
 
 # Enable IPv6
 cmd=(zmprov modifyServer "${HOSTNAME}.${MAIN_DOMAIN}" zimbraIPMode both)
