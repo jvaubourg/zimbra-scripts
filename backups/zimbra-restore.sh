@@ -335,7 +335,35 @@ function zimbraRestoreAccountCatchAll() {
   local at_domain=$(head -n1 "${backup_file}")
 
   if [ ! -z "${at_domain}" ]; then
+    log_debug "${email}: Is a CatchAll for <${at_domain}>"
     zimbraSetAccountCatchAll "${email}" "${at_domain}"
+  fi
+}
+
+function zimbraRestoreAccountForwarding() {
+  local email="${1}"
+  local backup_path="${_backups_path}/accounts/${email}"
+  local backup_file="${backup_path}/forwarding"
+
+  if [ ! -f "${backup_file}" -o ! -r "${backup_file}" ]; then
+    log_err "File <${backup_file}> is missing, is not a regular file or is not readable"
+    exit 1
+  fi
+
+  local to_email=$(sed -n 1p "${backup_file}")
+
+  if [ ! -z "${to_email}" ]; then
+    local keep_copies=$(sed -n 2p "${backup_file}")
+
+    if [ "${keep_copies}" = 'TRUE' ]; then
+      keep_copies=true
+      log_debug "${email}: Forwards to <${to_email}> (with copies)"
+    else
+      keep_copies=false
+      log_debug "${email}: Forwards to <${to_email}> (with no copies)"
+    fi
+
+    zimbraSetAccountForwarding "${email}" "${to_email}" "${keep_copies}"
   fi
 }
 
@@ -585,13 +613,6 @@ else
       log_info "${email}: Locking the account"
       zimbraRestoreAccountLock "${email}"
 
-      ${_exclude_settings} || {
-        log_info "${email}: Restoring settings"
-
-        log_debug "${email}: Restore CatchAll setting"
-        zimbraRestoreAccountCatchAll "${email}"
-      }
-  
       ${_exclude_aliases} || {
         log_info "${email}: Restoring aliases"
         zimbraRestoreAccountAliases "${email}"
@@ -605,6 +626,16 @@ else
       ${_exclude_filters} || {
         log_info "${email}: Restoring filters"
         zimbraRestoreAccountFilters "${email}"
+      }
+
+      ${_exclude_settings} || {
+        log_info "${email}: Restoring settings"
+
+        log_debug "${email}: Restore CatchAll setting"
+        zimbraRestoreAccountCatchAll "${email}"
+
+        log_debug "${email}: Restore Forwarding setting"
+        zimbraRestoreAccountForwarding "${email}"
       }
   
       ${_exclude_data} || {

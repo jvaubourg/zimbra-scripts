@@ -344,6 +344,17 @@ function zimbraBackupAccountCatchAll() {
   zimbraGetAccountCatchAll "${email}" > "${backup_file}"
 }
 
+# Save the email address to where all mails have to be forwarded, if this feature is used
+# Save as well the setting enabling to not keep a copy of the input emails after forwarding them
+function zimbraBackupAccountForwarding() {
+  local email="${1}"
+  local backup_path="${_backups_path}/accounts/${email}"
+  local backup_file="${backup_path}/forwarding"
+
+  install -o "${_zimbra_user}" -g "${_zimbra_group}" -d "${backup_path}"
+  zimbraGetAccountForwarding "${email}" > "${backup_file}"
+}
+
 # Save all the email aliases registred for the account
 function zimbraBackupAccountAliases() {
   local email="${1}"
@@ -592,16 +603,9 @@ else
         zimbraBackupAccountLock "${email}"
       }
   
-      ${_exclude_settings} || {
-        log_info "${email}: Backuping settings"
+      log_info "${email}: Backuping raw information"
+      zimbraBackupAccountSettings "${email}"
 
-        log_debug "${email}: Backup raw settings file"
-        zimbraBackupAccountSettings "${email}"
-
-        log_debug "${email}: Backup CatchAll setting"
-        zimbraBackupAccountCatchAll "${email}"
-      }
-  
       ${_exclude_aliases} || {
         log_info "${email}: Backuping aliases"
         zimbraBackupAccountAliases "${email}"
@@ -615,6 +619,14 @@ else
       ${_exclude_filters} || {
         log_info "${email}: Backuping filters"
         zimbraBackupAccountFilters "${email}"
+      }
+
+      ${_exclude_settings} || {
+        log_debug "${email}: Backup CatchAll setting"
+        zimbraBackupAccountCatchAll "${email}"
+
+        log_debug "${email}: Backup Forwarding setting"
+        zimbraBackupAccountForwarding "${email}"
       }
   
       ${_exclude_data} || {

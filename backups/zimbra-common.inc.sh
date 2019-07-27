@@ -176,6 +176,21 @@ function zimbraGetAccountCatchAll() {
   extractFromAccountSettingsFile "${email}" zimbraMailCatchAllAddress
 }
 
+function zimbraGetAccountForwarding() {
+  local email="${1}"
+  local to_email=$(extractFromAccountSettingsFile "${email}" zimbraPrefMailForwardingAddress)
+
+  if [ ! -z "${fwd_addr}" ]; then
+    local keep_copies=$(extractFromAccountSettingsFile "${email}" zimbraPrefMailLocalDeliveryDisabled)
+
+    if [ ! -z "${keep_copies}" ]; then
+      keep_copies=FALSE
+    fi
+
+    printf '%s\n%s' "${to_email}" "${keep_copies}"
+  fi
+}
+
 function zimbraGetAccountAliases() {
   local email="${1}"
 
@@ -330,6 +345,20 @@ function zimbraSetAccountCatchAll() {
   local cmd=(zmprov modifyAccount "${email}" zimbraMailCatchAllAddress "${at_domain}")
 
   execZimbraCmd cmd
+}
+
+function zimbraSetAccountForwarding() {
+  local email="${1}"
+  local to_email="${2}"
+  local keep_copies="${3}"
+
+  local cmd=(zmprov modifyAccount "${email}" zimbraPrefMailForwardingAddress "${to_email}")
+  execZimbraCmd cmd
+
+  if ! ${keep_copies}; then
+    local cmd=(zmprov modifyAccount "${email}" zimbraPrefMailLocalDeliveryDisabled TRUE)
+    execZimbraCmd cmd
+  fi
 }
 
 function zimbraSetAccountAlias() {
