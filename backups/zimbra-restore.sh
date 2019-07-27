@@ -14,6 +14,7 @@ set -o nounset
 
 source /usr/share/zimbra-scripts/backups/zimbra-common.inc.sh
 
+# Help function
 function exit_usage() {
   local status="${1}"
 
@@ -113,6 +114,8 @@ USAGE
 ## CORE FUNCTIONS ##
 ####################
 
+# Called by the main trap if an error occured and the script stops
+# Remove the incomplete account if the error occured during its restoration
 function cleanFailedProcess() {
   log_debug "Cleaning after fail"
 
@@ -133,6 +136,9 @@ function cleanFailedProcess() {
   fi
 }
 
+# Check if the settings file of the account backup is ready to be used
+# Useful for backups to check if zimbraBackupAccountSettings has been already
+# called to create the file
 function checkAccountSettingsFile() {
   local email="${1}"
   local backup_file="${_backups_path}/accounts/${email}/settings"
@@ -143,7 +149,8 @@ function checkAccountSettingsFile() {
   fi
 }
 
-# Should be secured with a call to checkAccountSettingsFile before using
+# Extract the value of a setting from the settings file available in the backup
+# Should be secured with a call to checkAccountSettingsFile before using it
 function extractFromAccountSettingsFile() {
   local email="${1}"
   local field="${2}"
@@ -153,6 +160,7 @@ function extractFromAccountSettingsFile() {
   printf '%s' "${value}"
 }
 
+# Return a list of email accounts to restore, depending on the options chosen by the user
 function selectAccountsToRestore() {
   local include_accounts="${1}"
   local exclude_accounts="${2}"
@@ -180,6 +188,7 @@ function selectAccountsToRestore() {
   echo -En ${accounts_to_restore}
 }
 
+# Return the size in human-readable bytes of a data.tgz file
 function getAccountDataFileSize() {
   local email="${1}"
   local backup_path="${_backups_path}/accounts/${email}"
@@ -193,6 +202,7 @@ function getAccountDataFileSize() {
 ## RESTORE ##
 #############
 
+# Create the domains written in a list available in the backup
 function zimbraRestoreDomains() {
   local backup_path="${_backups_path}/admin"
   local backup_file="${backup_path}/domains"
@@ -212,6 +222,30 @@ function zimbraRestoreDomains() {
   done < "${backup_file}"
 }
 
+# Create DKIM keys for the domains that are supposed to use one,
+# according to the list of backuped DKIM keys
+function zimbraRestoreDomainsDkim() {
+  local backup_path="${_backups_path}/admin/domains_dkim"
+  local domains=$(ls "${backup_path}")
+
+  for domain in ${domains}; do
+    local backup_file="${backup_path}/${domain}"
+
+    if [ ! -f "${backup_file}" -o ! -r "${backup_file}" ]; then
+      log_err "File <${backup_file}> is not a regular file or is not readable"
+      exit 1
+    fi
+
+    # Unfortunately there is no way in Zimbra to restore an already existing private key
+    log_info "Generating new DKIM keys for <${domain}>"
+    local dkim_pubkey=$(zimbraCreateDkim "${domain}")
+
+    log_info "${dkim_pubkey}"
+    _generated_dkim_keys["${domain}"]="${dkim_pubkey}"
+  done
+}
+
+# Create mailing lists registred in the backup, and associate all their members
 function zimbraRestoreLists() {
   local backup_path="${_backups_path}/lists"
   local lists=$(ls "${backup_path}")
@@ -224,7 +258,7 @@ function zimbraRestoreLists() {
       exit 1
     fi
 
-    log_debug "Create mailing list <${list_email}>"
+    log_debug "Creating mailing list <${list_email}>"
     zimbraCreateList "${list_email}"
 
     while read member_email; do
@@ -234,6 +268,8 @@ function zimbraRestoreLists() {
   done
 }
 
+# Create an email account based on the information available in the settings file
+# The default password is a generated one (it's not possible to directly pass an hash)
 function zimbraRestoreAccount() {
   local email="${1}"
 
@@ -243,9 +279,15 @@ function zimbraRestoreAccount() {
   local givenName=$(extractFromAccountSettingsFile "${email}" givenName)
   local displayName=$(extractFromAccountSettingsFile "${email}" displayName)
 
-  zimbraCreateAccount "${email}" "${cn}" "${givenName}" "${displayName}"
+  # The hash of the SSL private key is used as a salt
+  local generated_password=$(printf '%s' "$(sha256sum ${_zimbra_main_path}/ssl/zimbra/ca/ca.key)${RANDOM}" | sha256sum | cut -c 1-20)
+
+  zimbraCreateAccount "${email}" "${cn}" "${givenName}" "${displayName}" "${generated_password}"
+  _generated_account_passwords["${email}"]="${generated_password}"
 }
 
+# Update the password on an account with a hash, to restore the password
+# stored in the settings file
 function zimbraRestoreAccountPassword() {
   local email="${1}"
 
@@ -253,14 +295,18 @@ function zimbraRestoreAccountPassword() {
   local userPassword=$(extractFromAccountSettingsFile "${email}" userPassword)
 
   zimbraUpdateAccountPassword "${email}" "${userPassword}"
+  unset _generated_account_passwords["${email}"]
 }
 
+# Force the user of the account to change their password next time they log in
 function zimbraRestoreAccountForcePasswordChanging() {
   local email="${1}"
 
   zimbraSetPasswordMustChange "${email}"
 }
 
+# Lock or unlock an account, to be able to backup or restore it without
+# any external change during the process
 function zimbraRestoreAccountLock() {
   local email="${1}"
 
@@ -273,10 +319,36 @@ function zimbraRestoreAccountUnlock() {
   zimbraSetAccountLock "${email}" false
 }
 
+# Set the CatchAllAddress of an account if a domain to catch was backuped
+# A CatchAll enables an account to receive all the mails sent to non-existing
+# email addresses for that domain
+function zimbraRestoreAccountCatchAll() {
+  local email="${1}"
+  local backup_path="${_backups_path}/accounts/${email}"
+  local backup_file="${backup_path}/catch_all"
+
+  if [ ! -f "${backup_file}" -o ! -r "${backup_file}" ]; then
+    log_err "File <${backup_file}> is missing, is not a regular file or is not readable"
+    exit 1
+  fi
+
+  local at_domain=$(head -n1 "${backup_file}")
+
+  if [ ! -z "${at_domain}" ]; then
+    zimbraSetAccountCatchAll "${email}" "${at_domain}"
+  fi
+}
+
+# Set all the email aliases registred for an account in the backup
 function zimbraRestoreAccountAliases() {
   local email="${1}"
   local backup_path="${_backups_path}/accounts/${email}"
   local backup_file="${backup_path}/aliases"
+
+  if [ ! -f "${backup_file}" -o ! -r "${backup_file}" ]; then
+    log_err "File <${backup_file}> is missing, is not a regular file or is not readable"
+    exit 1
+  fi
 
   while read alias; do
     if [ "${alias}" != "root@${_zimbra_install_domain}" -a "${alias}" != "postmaster@${_zimbra_install_domain}" ]; then
@@ -287,6 +359,7 @@ function zimbraRestoreAccountAliases() {
   done < "${backup_file}"
 }
 
+# Create all the signatures saved in the backup for that email account
 function zimbraRestoreAccountSignatures() {
   local email="${1}"
   local backup_path="${_backups_path}/accounts/${email}/signatures"
@@ -317,6 +390,8 @@ function zimbraRestoreAccountSignatures() {
   done
 }
 
+# Create all the Sieve filters defined by the user to automatically redirect input emails
+# to custom folders of the account
 function zimbraRestoreAccountFilters() {
   local email="${1}"
   local backup_path="${_backups_path}/accounts/${email}"
@@ -330,6 +405,7 @@ function zimbraRestoreAccountFilters() {
   zimbraSetAccountFilters "${email}" "${backup_file}"
 }
 
+# Restore all the data for the account, with folders/mails/tasks/calendar/etc
 function zimbraRestoreAccountData() {
   local email="${1}"
   local backup_path="${_backups_path}/accounts/${email}"
@@ -343,6 +419,8 @@ function zimbraRestoreAccountData() {
   zimbraSetAccountData "${email}" "${backup_file}"
 }
 
+# Create all the folders which were excluded during the backup of the account
+# Obviously, the folders are now empty but ready to be used again with the Siever filters
 function zimbraRestoreAccountDataExcludedPaths() {
   local email="${1}"
   local backup_path="${_backups_path}/accounts/${email}"
@@ -369,6 +447,7 @@ _option_force_change_passwords=false
 _option_reset_passwords=false
 _exclude_domains=false
 _exclude_lists=false
+_exclude_settings=false
 _exclude_aliases=false
 _exclude_signatures=false
 _exclude_filters=false
@@ -376,8 +455,11 @@ _exclude_data=false
 _accounts_to_restore=
 _restoring_account=
 
-# Up to date by zimbraCreateAccount and zimbraUpdateAccountPassword
+# Will be changed by zimbraRestoreAccount and zimbraRestoreAccountPassword
 declare -A _generated_account_passwords
+
+# Up to date by zimbraRestoreDomainsDkim
+declare -A _generated_dkim_keys
 
 # Traps
 trap 'trap_exit $LINENO' EXIT TERM ERR
@@ -449,6 +531,9 @@ log_debug "Zimbra main domain is <${_zimbra_install_domain}>"
 ${_exclude_domains} || {
   log_info "Restoring domains"
   zimbraRestoreDomains
+
+  log_info "Restoring DKIM keys"
+  zimbraRestoreDomainsDkim
 }
 
 ${_exclude_lists} || {
@@ -483,7 +568,7 @@ else
         if ${_option_reset_passwords}; then
           log_info "${email}: New password is ${_generated_account_passwords["${email}"]}"
         else
-          log_info "${email}: Restore former password"
+          log_info "${email}: Restoring former password"
           zimbraRestoreAccountPassword "${email}"
         fi
 
@@ -499,6 +584,13 @@ else
 
       log_info "${email}: Locking the account"
       zimbraRestoreAccountLock "${email}"
+
+      ${_exclude_settings} || {
+        log_info "${email}: Restoring settings"
+
+        log_debug "${email}: Restore CatchAll setting"
+        zimbraRestoreAccountCatchAll "${email}"
+      }
   
       ${_exclude_aliases} || {
         log_info "${email}: Restoring aliases"

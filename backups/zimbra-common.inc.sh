@@ -16,7 +16,7 @@ _existing_accounts=
 _process_timer=
 _debug_mode=0
 
-# Will be filled with zimbraGetMainDomain
+# Will be filled by zimbraGetMainDomain
 _zimbra_install_domain=
 
 
@@ -93,6 +93,16 @@ function execZimbraCmd() {
   sudo -u "${_zimbra_user}" env "${path}" "${cmd[@]}"
 }
 
+# During a backup: only usable after calling zimbraBackupAccountSettings
+function extractFromAccountSettingsFile() {
+  local email="${1}"
+  local field="${2}"
+  local settings_file="${_backups_path}/accounts/${email}/settings"
+  local value=$((grep "^${field}:" "${settings_file}" || true) | sed "s/^${field}: //")
+
+  printf '%s' "${value}"
+}
+
 # Hides IDs returned by Zimbra when creating an object
 # (Zimbra sometimes displays errors directly to stdout)
 function hideReturnedId() {
@@ -126,6 +136,13 @@ function zimbraGetDomains() {
   execZimbraCmd cmd
 }
 
+function zimbraGetDkimInfo() {
+  local domain="${1}"
+  local cmd=("${_zimbra_main_path}/libexec/zmdkimkeyutil" -q -d "${domain}")
+
+  execZimbraCmd cmd
+}
+
 function zimbraGetLists() {
   local cmd=(zmprov --ldap getAllDistributionLists)
 
@@ -151,6 +168,12 @@ function zimbraGetAccountSettings() {
   local cmd=(zmprov --ldap getAccount "${email}")
 
   execZimbraCmd cmd
+}
+
+function zimbraGetAccountCatchAll() {
+  local email="${1}"
+
+  extractFromAccountSettingsFile "${email}" zimbraMailCatchAllAddress
 }
 
 function zimbraGetAccountAliases() {
@@ -232,6 +255,13 @@ function zimbraCreateDomain() {
   execZimbraCmd cmd | hideReturnedId
 }
 
+function zimbraCreateDkim() {
+  local domain="${1}"
+  local cmd=("${_zimbra_main_path}/libexec/zmdkimkeyutil" -a -d "${domain}")
+
+  execZimbraCmd cmd | (grep -v '^\(DKIM Data added\|Public signature to\)' || true)
+}
+
 function zimbraCreateList() {
   local list_email="${1}"
   local cmd=(zmprov createDistributionList "${list_email}")
@@ -252,15 +282,10 @@ function zimbraCreateAccount() {
   local cn="${2}"
   local givenName="${3}"
   local displayName="${4}"
-
-  # The hash of the SSL private key is used as a salt
-  local generated_password=$(echo "$(sha256sum ${_zimbra_main_path}/ssl/zimbra/ca/ca.key)${RANDOM}" | sha256sum | cut -c 1-20)
-  local cmd=(zmprov createAccount "${email}" "${generated_password}" cn "${cn}" displayName "${displayName}" givenName "${givenName}" zimbraPrefFromDisplay "${displayName}")
+  local password="${5}"
+  local cmd=(zmprov createAccount "${email}" "${password}" cn "${cn}" displayName "${displayName}" givenName "${givenName}" zimbraPrefFromDisplay "${displayName}")
 
   execZimbraCmd cmd | hideReturnedId
-
-  # Save the new password to be able to show it in logs
-  _generated_account_passwords["${email}"]="${generated_password}"
 }
 
 function zimbraUpdateAccountPassword() {
@@ -269,7 +294,6 @@ function zimbraUpdateAccountPassword() {
   local cmd=(zmprov modifyAccount "${email}" userPassword "${hash_password}")
 
   execZimbraCmd cmd
-  unset _generated_account_passwords["${email}"]
 }
 
 function zimbraSetPasswordMustChange() {
@@ -297,6 +321,14 @@ function zimbraSetAccountLock() {
   fi
 
   cmd=(zmprov modifyAccount "${email}" zimbraAccountStatus "${status}")
+  execZimbraCmd cmd
+}
+
+function zimbraSetAccountCatchAll() {
+  local email="${1}"
+  local at_domain="${2}"
+  local cmd=(zmprov modifyAccount "${email}" zimbraMailCatchAllAddress "${at_domain}")
+
   execZimbraCmd cmd
 }
 
