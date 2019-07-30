@@ -33,16 +33,6 @@ function exit_usage() {
 
   ENVIRONMENT
 
-    -a borg_repo
-      Full Borg repository address for the main files (everything except accounts)
-      [Default] None (mandatory option)
-      [Example] mailbackup@mybackups.example.com:myrepos/main
-
-    -k path
-      Path to the SSH private key to use to connect to the remote servers (see -a and -r)
-      This SSH key has to be configured without any passphrase
-      [Default] ${_borg_repo_ssh_key}
-
     -c path
       Main folder dedicated to this script
       [Default] ${_borg_local_folder_main}
@@ -59,6 +49,44 @@ function exit_usage() {
 
     -g group
       See zimbra-backup.sh -h
+
+  MAIN BORG REPOSITORY
+
+    [Mandatory] -a borg_repo
+      Full Borg repository address for the main files (everything except accounts)
+      Passphrases of the repositories created for backuping the accounts will be stored in this repo
+      [Example] mailbackup@mybackups.example.com:myrepos/main
+
+    [Mandatory] -z passphrase 
+      Passphrase of the Borg repository (see -a)
+
+    -t port
+      SSH port to reach the remote Borg server (see -a and -r)
+      [Default] ${_borg_repo_ssh_port}
+
+    -k path
+      Path to the SSH private key to use to connect to the remote servers (see -a and -r)
+      This SSH key has to be configured without any passphrase
+      [Default] ${_borg_repo_ssh_key}
+
+  DEFAULT BACKUP OPTIONS
+    These options will be used as default when creating a new backup config file (along with -t and -k)
+
+    [Mandatory] -r borg_repo
+      Full Borg address of a folder where to create the new repositories for the accounts
+      [Example] mailbackup@mybackups.example.com:myrepos
+
+    -s path
+      See zimbra-backup.sh -h
+
+    -e ASSET
+      See zimbra-backup.sh -h
+
+      ASSET is restricted to:
+        aliases
+        signatures
+        filters
+        data
 
   BACKUP CONFIG FILES
     Every account to backup has to be associated to a config file for its backup (see -c for the folder location)
@@ -77,30 +105,6 @@ function exit_usage() {
         2222
         fBUgUqfp9n5kxu8V/ghbZaMx6Nyrg5FTh4nA70KlohE=
         -s .*/nobackup
-
-  DEFAULT BACKUP OPTIONS
-    These options will be used as default when creating a new backup config file
-    
-    -r borg_repo
-      Full Borg repository address over SSH
-      [Default] None (mandatory option)
-      [Example] mailbackup@mybackups.example.com:myrepos/jdoe
-
-    -t port
-      SSH port to reach the remote Borg server (located with -r)
-      [Default] ${_borg_repo_ssh_port}
-
-    -s path
-      See zimbra-backup.sh -h
-
-    -e ASSET
-      See zimbra-backup.sh -h
-
-      ASSET is restricted to:
-        aliases
-        signatures
-        filters
-        data
 
   OTHERS
 
@@ -129,6 +133,11 @@ function cleanFailedProcess() {
   log_debug "Cleaning after fail"
 }
 
+function regenerateTmpFolder() {
+  rm -rf "${_borg_local_folder_tmp}"
+  install -b -m 0700 -o "${_zimbra_user}" -g "${_zimbra_group}" -d "${_borg_local_folder_tmp}"
+}
+
 function createAccountBackupFile() {
   local email="${1}"
   local backup_file="${2}"
@@ -142,6 +151,24 @@ function createAccountBackupFile() {
   printf '%s\n' "${_borg_repo_ssh_port}" >> "${backup_file}"
   printf '%s\n' "${generated_passphrase}" >> "${backup_file}"
   printf '%s\n' "${backup_options}" >> "${backup_file}"
+}
+
+function borgBackupMain() {
+  zimbra-backup.sh -d "${_debug_mode}" -e accounts -b "${_borg_local_folder_tmp}"
+
+  export BORG_PASSPHRASE="${_borg_repo_main_passphrase}"
+  export BORG_RSH="ssh -oBatchMode=yes -i ${_borg_repo_ssh_key} -p ${_borg_repo_ssh_port}"
+
+  log_debug "Try to init the Main Borg repository"
+  borg init -e repokey "${_borg_repo_main}" &> /dev/null || true
+
+  log_info "Syncing the main files with Borg server"
+  pushd "${_borg_local_folder_tmp}"
+  borg create --compression lz4 "${_borg_repo_main}::{now:%Y-%m-%d}" .
+  popd
+
+  unset BORG_PASSPHRASE
+  unset BORG_RSH
 }
 
 function borgBackupAccount() {
@@ -174,6 +201,9 @@ function borgBackupAccount() {
 
   unset BORG_PASSPHRASE
   unset BORG_RSH
+
+  log_debug "Delete and recreate TMP folder"
+  regenerateTmpFolder
 }
 
 
@@ -181,17 +211,17 @@ function borgBackupAccount() {
 ### GLOBAL VARIABLES ###
 ########################
 
+_borg_repo_main=
+_borg_repo_main_passphrase=
+_borg_repo_accounts=
+_borg_repo_ssh_key="${_borg_local_folder_main}/private_ssh_key"
+_borg_repo_ssh_port=22
 _borg_local_folder_main="${_zimbra_main_path}_borgbackup"
 _borg_local_folder_tmp="${_borg_local_folder_main}/tmp"
 _borg_local_folder_configs="${_borg_local_folder_main}/configs"
-_borg_repo_main='borg@testrestore.choca.pics:repo_chocapics'
-_borg_repo_accounts='borg@testrestore.choca.pics:repo_chocapics'
-_borg_repo_ssh_key="${_borg_local_folder_main}/private_ssh_key"
-_borg_repo_ssh_port=22
 
 _backups_include_accounts=
 _backups_exclude_accounts=
-_backups_lock_accounts=false
 _accounts_to_backup=
 
 declare -a _backups_options
@@ -205,19 +235,20 @@ trap 'exit 1' INT
 ### OPTIONS ###
 ###############
 
-while getopts 'm:x:la:k:c:p:u:g:r:t:s:e:d:h' opt; do
+while getopts 'm:x:lc:p:u:g:a:z:t:k:r:s:e:d:h' opt; do
   case "${opt}" in
     m) _backups_include_accounts=$(echo -En ${_backups_include_accounts} ${OPTARG}) ;;
     x) _backups_exclude_accounts=$(echo -En ${_backups_exclude_accounts} ${OPTARG}) ;;
-    l) _backups_lock_accounts=true ;;
-    a) _borg_repo_main="${OPTARG%/}" ;;
-    k) _borg_repo_ssh_key="${OPTARG}" ;;
+    l) _backups_options+=(-l) ;;
     c) _borg_local_folder_main="${OPTARG%/}" ;;
     p) _zimbra_main_path="${OPTARG%/}" ;;
     u) _zimbra_user="${OPTARG}" ;;
     g) _zimbra_group="${OPTARG}" ;;
+    a) _borg_repo_main="${OPTARG%/}" ;;
+    z) _borg_repo_main_passphrase="${OPTARG%/}" ;;
+    t) _borg_repo_ssh_port="${OPTARG}" ;;
+    k) _borg_repo_ssh_key="${OPTARG}" ;;
     r) _borg_repo_accounts="${OPTARG%/}" ;;
-    t) _borg_repo_ssh_port="${OPTARG%/}" ;;
     s) _backups_options+=(-s "${OPTARG}") ;;
     e) for subopt in ${OPTARG}; do
          case "${subopt}" in
@@ -233,6 +264,11 @@ done
 
 if [ "${_debug_mode}" -ge 3 ]; then
   set -o xtrace
+fi
+
+if [ -z "${_borg_repo_main}" -o -z "${_borg_repo_main_passphrase}" -o -z "${_borg_repo_accounts}" ]; then
+  log_err "Options -a, -z and -r are mandatory"
+  exit 1
 fi
 
 if [ ! -z "${_backups_include_accounts}" -a ! -z "${_backups_exclude_accounts}" ]; then
@@ -251,8 +287,11 @@ fi
 ###################
 
 install -b -m 0700 -o "${_zimbra_user}" -g "${_zimbra_group}" -d "${_borg_local_folder_main}"
-install -b -m 0700 -o "${_zimbra_user}" -g "${_zimbra_group}" -d "${_borg_local_folder_tmp}"
 install -b -m 0700 -o "${_zimbra_user}" -g "${_zimbra_group}" -d "${_borg_local_folder_configs}"
+regenerateTmpFolder
+
+log_info "Borgbackuping the server configuration"
+borgBackupMain
 
 if [ -z "${_backups_include_accounts}" ]; then
   log_info "Preparing accounts borgbackuping"
@@ -270,3 +309,5 @@ else
     borgBackupAccount "${email}"
   done
 fi
+
+exit 0

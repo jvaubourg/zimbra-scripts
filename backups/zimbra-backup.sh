@@ -87,6 +87,8 @@ function exit_usage() {
           Do not backup registred signatures
         filters
           Do not backup sieve filters
+        accounts
+          Do not backup the accounts at all
         data
           Do not backup contents of the mailboxes (ie. folders/emails/contacts/calendar/briefcase/tasks)
         all_except_accounts
@@ -450,6 +452,7 @@ _exclude_settings=false
 _exclude_aliases=false
 _exclude_signatures=false
 _exclude_filters=false
+_exclude_accounts=false
 _exclude_data=false
 _accounts_to_backup=
 _backuping_account=
@@ -484,6 +487,7 @@ while getopts 'm:x:s:lb:p:u:g:e:d:h' opt; do
            aliases) _exclude_aliases=true ;;
            signatures) _exclude_signatures=true ;;
            filters) _exclude_filters=true ;;
+           accounts) _exclude_accounts=true ;;
            data) _exclude_data=true ;;
            all_except_accounts)
              _exclude_admins=true
@@ -548,68 +552,70 @@ ${_exclude_lists} || {
   zimbraBackupLists
 }
 
-if [ -z "${_backups_include_accounts}" ]; then
-  log_info "Preparing accounts backuping"
-fi
-
-_accounts_to_backup=$(selectAccountsToBackup "${_backups_include_accounts}" "${_backups_exclude_accounts}")
-
-if [ -z "${_accounts_to_backup}" ]; then
-  log_debug "No account to backup"
-else
-  log_debug "Accounts to backup: ${_accounts_to_backup}"
-
-  # Backup accounts
-  for email in ${_accounts_to_backup}; do
-    if [ -e "${_backups_path}/accounts/${email}" ]; then
-      log_warn "Skip account <${email}> (<${_backups_path}/accounts/${email}/> already exists)"
-    else
-      resetAccountProcessDuration
-
-      _backuping_account="${email}"
-      log_info "Backuping account <${email}>"
-
-      ${_backups_lock_accounts} && {
-        log_info "${email}: Locking the account"
-        zimbraBackupAccountLock "${email}"
-      }
+${_exclude_accounts} || {
+  if [ -z "${_backups_include_accounts}" ]; then
+    log_info "Preparing accounts backuping"
+  fi
   
-      log_info "${email}: Backuping raw information"
-      zimbraBackupAccountSettings "${email}"
-
-      ${_exclude_aliases} || {
-        log_info "${email}: Backuping aliases"
-        zimbraBackupAccountAliases "${email}"
-      }
+  _accounts_to_backup=$(selectAccountsToBackup "${_backups_include_accounts}" "${_backups_exclude_accounts}")
   
-      ${_exclude_signatures} || {
-        log_info "${email}: Backuping signatures"
-        zimbraBackupAccountSignatures "${email}"
-      }
+  if [ -z "${_accounts_to_backup}" ]; then
+    log_debug "No account to backup"
+  else
+    log_debug "Accounts to backup: ${_accounts_to_backup}"
   
-      ${_exclude_filters} || {
-        log_info "${email}: Backuping filters"
-        zimbraBackupAccountFilters "${email}"
-      }
-
-      ${_exclude_settings} || {
-        log_debug "${email}: Backup CatchAll setting"
-        zimbraBackupAccountCatchAll "${email}"
-
-        log_debug "${email}: Backup Forwarding setting"
-        zimbraBackupAccountForwarding "${email}"
-      }
+    # Backup accounts
+    for email in ${_accounts_to_backup}; do
+      if [ -e "${_backups_path}/accounts/${email}" ]; then
+        log_warn "Skip account <${email}> (<${_backups_path}/accounts/${email}/> already exists)"
+      else
+        resetAccountProcessDuration
   
-      ${_exclude_data} || {
-        log_info "${email}: Backuping data"
-        zimbraBackupAccountData "${email}"
-      }
+        _backuping_account="${email}"
+        log_info "Backuping account <${email}>"
   
-      showAccountProcessDuration
-      _backuping_account=
-    fi
-  done
-fi
+        ${_backups_lock_accounts} && {
+          log_info "${email}: Locking the account"
+          zimbraBackupAccountLock "${email}"
+        }
+    
+        log_info "${email}: Backuping raw information"
+        zimbraBackupAccountSettings "${email}"
+  
+        ${_exclude_aliases} || {
+          log_info "${email}: Backuping aliases"
+          zimbraBackupAccountAliases "${email}"
+        }
+    
+        ${_exclude_signatures} || {
+          log_info "${email}: Backuping signatures"
+          zimbraBackupAccountSignatures "${email}"
+        }
+    
+        ${_exclude_filters} || {
+          log_info "${email}: Backuping filters"
+          zimbraBackupAccountFilters "${email}"
+        }
+  
+        ${_exclude_settings} || {
+          log_debug "${email}: Backup CatchAll setting"
+          zimbraBackupAccountCatchAll "${email}"
+  
+          log_debug "${email}: Backup Forwarding setting"
+          zimbraBackupAccountForwarding "${email}"
+        }
+    
+        ${_exclude_data} || {
+          log_info "${email}: Backuping data"
+          zimbraBackupAccountData "${email}"
+        }
+    
+        showAccountProcessDuration
+        _backuping_account=
+      fi
+    done
+  fi
+}
 
 setZimbraPermissions "${_backups_path}"
 showFullProcessDuration
