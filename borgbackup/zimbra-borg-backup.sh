@@ -178,7 +178,9 @@ function borgBackupMain() {
 
   log_info "Sending data to Borg (new archive $(date +'%Y-%m-%d') in the main repo)"
   pushd "${_borg_local_folder_tmp}" > /dev/null
-  borg create ${_borg_debug_mode} --compression lz4 "${_borg_repo_main}::{now:%Y-%m-%d}" .
+  borg create ${_borg_debug_mode} --compression lz4 "${_borg_repo_main}::{now:%Y-%m-%d}" . || {
+    log_err "The backup on the Borg server might *NOT* be up do date"
+  }
   popd > /dev/null
 
   unset BORG_PASSPHRASE
@@ -213,7 +215,7 @@ function borgBackupAccount() {
   log_info "${email}: Sending data to Borg (new archive $(date +'%Y-%m-%d') in the account repo)"
   pushd "${_borg_local_folder_tmp}/accounts/${email}" > /dev/null
   borg create ${_borg_debug_mode} --stats --compression lz4 "${ssh_repo}::{now:%Y-%m-%d}" . || {
-    log_err "${email}: The backup on the Borg server is *NOT* up do date"
+    log_err "${email}: The backup on the Borg server is probably *NOT* up do date"
   }
   popd > /dev/null
 
