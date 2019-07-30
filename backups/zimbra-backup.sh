@@ -258,7 +258,7 @@ function zimbraBackupDomains() {
 # Usable only after calling zimbraBackupDomains
 function zimbraBackupDomainsDkim() {
   local backup_path="${_backups_path}/admin/domains_dkim"
-  local domains_file="${backup_path}/domains"
+  local domains_file="${_backup_path}/admin/domains"
 
   install -o "${_zimbra_user}" -g "${_zimbra_group}" -d "${backup_path}"
 
