@@ -157,7 +157,7 @@ function borgBackupMain() {
   log_debug "Main files: Backuping with zimbra-backup.sh"
   zimbra-backup.sh -d "${_debug_mode}" -e accounts -b "${_borg_local_folder_tmp}"
 
-  print '%s\n' "${_accounts_to_backup}" > "${_borg_local_folder_tmp}/accounts_list"
+  printf '%s\n' "${_accounts_to_backup}" > "${_borg_local_folder_tmp}/accounts_list"
   cp -r "${_borg_local_folder_configs}" "${_borg_local_folder_tmp}/accounts_borg"
 
   export BORG_PASSPHRASE="${_borg_repo_main_passphrase}"
