@@ -123,7 +123,7 @@ function selectAccountsToBackup() {
     accounts_to_backup=$(zimbraGetAccounts)
     log_debug "Existing accounts: ${accounts_to_backup}"
   
-    if [ ! -z "${exclude_accounts}" ]; then
+    if [ -n "${exclude_accounts}" ]; then
       accounts=
   
       for email in ${accounts_to_backup}; do
@@ -211,10 +211,10 @@ function zimbraGetAccountForwarding() {
   local email="${1}"
   local to_email=$(extractFromAccountSettingsFile "${email}" zimbraPrefMailForwardingAddress)
 
-  if [ ! -z "${to_email}" ]; then
+  if [ -n "${to_email}" ]; then
     local keep_copies=$(extractFromAccountSettingsFile "${email}" zimbraPrefMailLocalDeliveryDisabled)
 
-    if [ ! -z "${keep_copies}" ]; then
+    if [ -n "${keep_copies}" ]; then
       keep_copies=FALSE
     fi
 

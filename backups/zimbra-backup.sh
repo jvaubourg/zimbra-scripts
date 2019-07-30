@@ -133,7 +133,7 @@ USAGE
 function cleanFailedProcess() {
   log_debug "Cleaning after fail"
 
-  if [ ! -z "${_backuping_account}" -a -d "${_backups_path}/accounts/${_backuping_account}" ]; then
+  if [ -n "${_backuping_account}" -a -d "${_backups_path}/accounts/${_backuping_account}" ]; then
     local ask_remove=y
     
     if [ "${_debug_mode}" -gt 0 ]; then
@@ -169,7 +169,7 @@ function selectAccountDataPathsToExclude() {
     for regex in "${_backups_exclude_data_regexes[@]}"; do
       local selected_folders=$(printf '%s' "${folders}" | (grep -- "^${regex}\\(\$\\|/.*\\)" || true))
 
-      if [ ! -z "${selected_folders}" ]; then
+      if [ -n "${selected_folders}" ]; then
         log_debug "${email}: Raw list of the folders selected to be excluded: $(echo -En ${selected_folders})"
 
         # Will be used to restore the (empty) folders and subfolders
@@ -178,7 +178,7 @@ function selectAccountDataPathsToExclude() {
         if [ "$(printf '%s\n' "${selected_folders}" | wc -l)" -gt 1 ]; then
 
           # We need to be sure that some selected folders are not included in other ones
-          while [ ! -z "${selected_folders}" ]; do
+          while [ -n "${selected_folders}" ]; do
             local first=$(printf '%s' "${selected_folders}" | head -n 1)
             local first_escaped=$(escapeGrepStringRegexChars "${first}")
 
@@ -266,7 +266,7 @@ function zimbraBackupDomainsDkim() {
     local backup_file="${backup_path}/${domain}"
     local dkim_info=$(zimbraGetDkimInfo "${domain}" | (grep -v 'No DKIM Information' || true))
 
-    if [ ! -z "${dkim_info}" ]; then
+    if [ -n "${dkim_info}" ]; then
       printf '%s' "${dkim_info}" > "${backup_file}"
     fi
   done < "${domains_file}"
@@ -428,7 +428,7 @@ function zimbraBackupAccountData() {
     backup_data_size=$(zimbraGetAccountDataSize "${email}")
   fi
 
-  if [ ! -z "${filter_query}" ]; then
+  if [ -n "${filter_query}" ]; then
     filter_query="&query=${filter_query/ and /}"
     log_debug "${email}: Data filter query is <${filter_query}>"
   fi
@@ -446,6 +446,7 @@ _log_id=ZIMBRA-BACKUP
 _backups_include_accounts=
 _backups_exclude_accounts=
 _backups_lock_accounts=false
+_backups_exclude_data_regexes=() # An array prevents issues with spaces
 _exclude_admins=false
 _exclude_domains=false
 _exclude_lists=false
@@ -457,9 +458,6 @@ _exclude_accounts=false
 _exclude_data=false
 _accounts_to_backup=
 _backuping_account=
-
-# Using an array prevents issues with spaces in regexes
-declare -a _backups_exclude_data_regexes
 
 # Traps
 trap 'trap_exit $LINENO' EXIT TERM ERR
@@ -515,7 +513,7 @@ if [ "${_debug_mode}" -ge 3 ]; then
   set -o xtrace
 fi
 
-if [ ! -z "${_backups_include_accounts}" -a ! -z "${_backups_exclude_accounts}" ]; then
+if [ -n "${_backups_include_accounts}" -a -n "${_backups_exclude_accounts}" ]; then
   log_err "Options -m and -x are not compatible"
   exit 1
 fi

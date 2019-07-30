@@ -119,7 +119,7 @@ USAGE
 function cleanFailedProcess() {
   log_debug "Cleaning after fail"
 
-  if [ ! -z "${_restoring_account}" ]; then
+  if [ -n "${_restoring_account}" ]; then
     local ask_remove=y
 
     if [ "${_debug_mode}" -gt 0 ]; then
@@ -171,7 +171,7 @@ function selectAccountsToRestore() {
   if [ -z "${accounts_to_restore}" ]; then
     accounts_to_restore=$(ls "${_backups_path}/accounts")
   
-    if [ ! -z "${exclude_accounts}" ]; then
+    if [ -n "${exclude_accounts}" ]; then
       accounts=
   
       for email in ${accounts_to_restore}; do
@@ -334,7 +334,7 @@ function zimbraRestoreAccountCatchAll() {
 
   local at_domain=$(head -n1 "${backup_file}")
 
-  if [ ! -z "${at_domain}" ]; then
+  if [ -n "${at_domain}" ]; then
     log_debug "${email}: Is a CatchAll for <${at_domain}>"
     zimbraSetAccountCatchAll "${email}" "${at_domain}"
   fi
@@ -352,7 +352,7 @@ function zimbraRestoreAccountForwarding() {
 
   local to_email=$(sed -n 1p "${backup_file}")
 
-  if [ ! -z "${to_email}" ]; then
+  if [ -n "${to_email}" ]; then
     local keep_copies=$(sed -n 2p "${backup_file}")
 
     if [ "${keep_copies}" = 'TRUE' ]; then
@@ -533,7 +533,7 @@ if [ "${_debug_mode}" -ge 3 ]; then
   set -o xtrace
 fi
 
-if [ ! -z "${_backups_include_accounts}" -a ! -z "${_backups_exclude_accounts}" ]; then
+if [ -n "${_backups_include_accounts}" -a -n "${_backups_exclude_accounts}" ]; then
   log_err "Options -m and -x are not compatible"
   exit 1
 fi

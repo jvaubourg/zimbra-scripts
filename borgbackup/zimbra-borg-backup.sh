@@ -290,8 +290,7 @@ _borg_repo_ssh_port=22
 _backups_include_accounts=
 _backups_exclude_accounts=
 _accounts_to_backup=
-
-declare -a _backups_options
+_backups_options=()
 
 # Traps
 trap 'trap_exit $LINENO' EXIT TERM ERR
@@ -344,7 +343,7 @@ if [ -z "${_borg_repo_main}" -o -z "${_borg_repo_main_passphrase}" -o -z "${_bor
   exit 1
 fi
 
-if [ ! -z "${_backups_include_accounts}" -a ! -z "${_backups_exclude_accounts}" ]; then
+if [ -n "${_backups_include_accounts}" -a -n "${_backups_exclude_accounts}" ]; then
   log_err "Options -m and -x are not compatible"
   exit 1
 fi
