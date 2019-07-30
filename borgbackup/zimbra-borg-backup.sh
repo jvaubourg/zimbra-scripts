@@ -53,8 +53,8 @@ function exit_usage() {
   MAIN BORG REPOSITORY
 
     [Mandatory] -a borg_repo
-      Full Borg repository address for the main files (everything except accounts)
-      Passphrases of the repositories created for backuping the accounts will be stored in this repo
+      Full Borg repository address for the main files (ie. for everything except accounts)
+      Passphrases of the repositories created for backuping the accounts will be saved in this repo
       [Example] mailbackup@mybackups.example.com:myrepos/main
 
     [Mandatory] -z passphrase 
@@ -166,10 +166,10 @@ function borgBackupMain() {
   log_debug "Try to init the main Borg repository"
   borg init -e repokey "${_borg_repo_main}" &> /dev/null || true
 
-  log_info "Creating a new Borg archive in the main repository"
-  pushd "${_borg_local_folder_tmp}"
-  borg create --error --compression lz4 "${_borg_repo_main}::{now:%Y-%m-%d}" .
-  popd
+  log_info "Sending data to Borg (new archive $(date +'%Y-%m-%d') in the main repo)"
+  pushd "${_borg_local_folder_tmp}" > /dev/null
+  borg create --compression lz4 "${_borg_repo_main}::{now:%Y-%m-%d}" .
+  popd > /dev/null
 
   unset BORG_PASSPHRASE
   unset BORG_RSH
@@ -198,10 +198,10 @@ function borgBackupAccount() {
   log_debug "${email}: Try to init a Borg repository for this account"
   borg init -e repokey "${ssh_repo}" &> /dev/null || true
 
-  log_info "${email}: Creating a new Borg archive in the dedicated repository"
-  pushd "${_borg_local_folder_tmp}/accounts/${email}"
-  borg create --error --compression lz4 "${ssh_repo}::{now:%Y-%m-%d}" .
-  popd
+  log_info "${email}: Sending data to Borg (new archive $(date +'%Y-%m-%d') in the account repo)"
+  pushd "${_borg_local_folder_tmp}/accounts/${email}" > /dev/null
+  borg create --stats --compression lz4 "${ssh_repo}::{now:%Y-%m-%d}" .
+  popd > /dev/null
 
   unset BORG_PASSPHRASE
   unset BORG_RSH
