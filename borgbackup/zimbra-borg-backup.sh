@@ -168,7 +168,9 @@ function borgBackupAccount() {
   borg init -e repokey "${ssh_repo}" &> /dev/null || true
 
   log_info "${email}: Syncing with Borg server"
-  borg create --compression lz4 "${ssh_repo}::{now:%Y-%m-%d}" "${_borg_local_folder_tmp}"
+  pushd "${_borg_local_folder_tmp}/accounts/${email}"
+  borg create --compression lz4 "${ssh_repo}::{now:%Y-%m-%d}" .
+  popd
 
   unset BORG_PASSPHRASE
   unset BORG_RSH
