@@ -154,15 +154,19 @@ function createAccountBackupFile() {
 }
 
 function borgBackupMain() {
+  log_debug "Main files: Backuping with zimbra-backup.sh"
   zimbra-backup.sh -d "${_debug_mode}" -e accounts -b "${_borg_local_folder_tmp}"
+
+  print '%s\n' "${_accounts_to_backup}" > "${_borg_local_folder_tmp}/accounts_list"
+  cp -r "${_borg_local_folder_configs}" "${_borg_local_folder_tmp}/accounts_borg"
 
   export BORG_PASSPHRASE="${_borg_repo_main_passphrase}"
   export BORG_RSH="ssh -oBatchMode=yes -i ${_borg_repo_ssh_key} -p ${_borg_repo_ssh_port}"
 
-  log_debug "Try to init the Main Borg repository"
+  log_debug "Main files: Try to init the Main Borg repository"
   borg init -e repokey "${_borg_repo_main}" &> /dev/null || true
 
-  log_info "Syncing the main files with Borg server"
+  log_info "Main files: Syncing with Borg server"
   pushd "${_borg_local_folder_tmp}"
   borg create --compression lz4 "${_borg_repo_main}::{now:%Y-%m-%d}" .
   popd
@@ -185,7 +189,7 @@ function borgBackupAccount() {
   local passphrase=$(sed -n 3p "${backup_file}")
   local backup_options=$(sed -n 4p "${backup_file}")
 
-  log_debug "${email}: Call zimbra-backup.sh for backuping"
+  log_debug "${email}: Backuping with zimbra-backup.sh"
   zimbra-backup.sh ${backup_options} -d "${_debug_mode}" -e all_except_accounts -b "${_borg_local_folder_tmp}" -m "${email}"
 
   export BORG_PASSPHRASE="${passphrase}"
@@ -290,14 +294,14 @@ install -b -m 0700 -o "${_zimbra_user}" -g "${_zimbra_group}" -d "${_borg_local_
 install -b -m 0700 -o "${_zimbra_user}" -g "${_zimbra_group}" -d "${_borg_local_folder_configs}"
 regenerateTmpFolder
 
-log_info "Borgbackuping the server configuration"
-borgBackupMain
-
 if [ -z "${_backups_include_accounts}" ]; then
   log_info "Preparing accounts borgbackuping"
 fi
 
 _accounts_to_backup=$(selectAccountsToBackup "${_backups_include_accounts}" "${_backups_exclude_accounts}")
+
+log_info "Borgbackuping the server configuration"
+borgBackupMain
 
 if [ -z "${_accounts_to_backup}" ]; then
   log_debug "No account to borgbackup"
