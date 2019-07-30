@@ -148,35 +148,6 @@ function cleanFailedProcess() {
   fi
 }
 
-# Return a list of email accounts to backup, depending on the options chosen by the user
-function selectAccountsToBackup() {
-  local include_accounts="${1}"
-  local exclude_accounts="${2}"
-  local accounts_to_backup="${include_accounts}"
-
-  # Backup either accounts provided with -m, either all accounts,
-  # either all accounts minus the ones provided with -x
-  if [ -z "${accounts_to_backup}" ]; then
-    accounts_to_backup=$(zimbraGetAccounts)
-    log_debug "Existing accounts: ${accounts_to_backup}"
-  
-    if [ ! -z "${exclude_accounts}" ]; then
-      accounts=
-  
-      for email in ${accounts_to_backup}; do
-        if [[ ! "${exclude_accounts}" =~ (^| )"${email}"($| ) ]]; then
-          accounts="${accounts} ${email}"
-        fi
-      done
-  
-      accounts_to_backup="${accounts}"
-    fi
-  fi
-
-  # echo is used to remove extra spaces
-  echo -En ${accounts_to_backup}
-}
-
 # Save the list of folders to exclude from the backup for that account, based on the option passed to the script
 # The excluded_data_paths file will contain the top folders to exclude (and so the subfolders will be excluded in the same time)
 # The excluded_data_paths_full will contain a full list of the excluded folders, to be able to restore them (empty) with all

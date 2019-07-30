@@ -109,6 +109,35 @@ function hideReturnedId() {
   grep -v '^[a-f0-9-]\+$' || true
 }
 
+# Return a list of email accounts to backup, depending on the include/exclude lists
+function selectAccountsToBackup() {
+  local include_accounts="${1}"
+  local exclude_accounts="${2}"
+  local accounts_to_backup="${include_accounts}"
+
+  # Backup either accounts provided with -m, either all accounts,
+  # either all accounts minus the ones provided with -x
+  if [ -z "${accounts_to_backup}" ]; then
+    accounts_to_backup=$(zimbraGetAccounts)
+    log_debug "Existing accounts: ${accounts_to_backup}"
+  
+    if [ ! -z "${exclude_accounts}" ]; then
+      accounts=
+  
+      for email in ${accounts_to_backup}; do
+        if [[ ! "${exclude_accounts}" =~ (^| )"${email}"($| ) ]]; then
+          accounts="${accounts} ${email}"
+        fi
+      done
+  
+      accounts_to_backup="${accounts}"
+    fi
+  fi
+
+  # echo is used to remove extra spaces
+  echo -En ${accounts_to_backup}
+}
+
 
 ######################
 ## ZIMBRA CLI & API ##

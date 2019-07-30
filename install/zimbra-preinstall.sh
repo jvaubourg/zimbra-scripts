@@ -27,8 +27,7 @@ function create_user() {
   local user="${1}"
 
   useradd "${user}" || true
-  mkdir -m 0700 "/home/${user}/.ssh"
-  chown "${user}:" "/home/${user}/.ssh"
+  install -b -m 0700 -o "${user}" -g "${user}" -d "/home/${user}/.ssh"
   install -b -m 0600 -o "${user}" -g "${user}" "${FILES_SECRETS}/home/${user}/.ssh/authorized_keys" "/home/${user}/.ssh"
 }
 
