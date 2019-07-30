@@ -210,7 +210,7 @@ function zimbraGetAccountForwarding() {
   local email="${1}"
   local to_email=$(extractFromAccountSettingsFile "${email}" zimbraPrefMailForwardingAddress)
 
-  if [ ! -z "${fwd_addr}" ]; then
+  if [ ! -z "${to_email}" ]; then
     local keep_copies=$(extractFromAccountSettingsFile "${email}" zimbraPrefMailLocalDeliveryDisabled)
 
     if [ ! -z "${keep_copies}" ]; then
