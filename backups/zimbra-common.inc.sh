@@ -68,7 +68,8 @@ function showFullProcessDuration {
   log_info "Time used for processing everything: ${duration_fancy}"
 }
 
-function escapeGrepStringRegexChars() to  local search="${1}"
+function escapeGrepStringRegexChars() {
+  local search="${1}"
   printf '%s' "$(printf '%s' "${search}" | sed 's/[.[\*^$]/\\&/g')"
 }
 
