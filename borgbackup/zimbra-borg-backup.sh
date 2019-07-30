@@ -173,16 +173,11 @@ function borgBackupMain() {
   borg init ${_borg_debug_mode} -e repokey "${_borg_repo_main}" &> /dev/null || true
 
   if borg info ${_borg_debug_mode} "${_borg_repo_main}" > /dev/null; then
-    log_err "The Borg server looks unreachable for the main repo"
-    log_err "The backup on the Borg server is *NOT* up do date"
-
-  else
     log_debug "Check if the archive of the day already exists in the main repo"
 
     if borg info ${_borg_debug_mode} "${_borg_repo_main}::${new_archive}" &> /dev/null; then
       log_err "The archive of the day (${new_archive}) already exists"
       log_err "The backup on the Borg server might *NOT* be up do date"
-
     else
       log_info "Backuping using zimbra-backup.sh"
       zimbra-backup.sh -d "${_debug_mode}" -e accounts -b "${_borg_local_folder_tmp}"
@@ -197,6 +192,9 @@ function borgBackupMain() {
       }
       popd > /dev/null
     fi
+  else
+    log_err "The Borg server or the main repository is currently unusable"
+    log_err "The backup on the Borg server is *NOT* up do date"
   fi
 
   unset BORG_PASSPHRASE
@@ -227,16 +225,11 @@ function borgBackupAccount() {
   borg init ${_borg_debug_mode} -e repokey "${ssh_repo}" &> /dev/null || true
 
   if borg info ${_borg_debug_mode} "${ssh_repo}" > /dev/null; then
-    log_err "${email}: The Borg server looks unreachable for this account"
-    log_err "${email}: The backup on the Borg server is *NOT* up do date"
-
-  else
     log_debug "${email}: Check if the archive of the day already exists"
 
     if borg info ${_borg_debug_mode} "${ssh_repo}::${new_archive}" &> /dev/null; then
       log_err "${email}: The archive of the day (${new_archive}) already exists"
       log_err "${email}: The backup on the Borg server might *NOT* be up do date"
-
     else
       log_info "${email}: Backuping using zimbra-backup.sh"
       zimbra-backup.sh ${backup_options} -d "${_debug_mode}" -e all_except_accounts -b "${_borg_local_folder_tmp}" -m "${email}"
@@ -248,6 +241,9 @@ function borgBackupAccount() {
       }
       popd > /dev/null
     fi
+  else
+    log_err "${email}: The Borg server or the repository is currently unusable for this account"
+    log_err "${email}: The backup on the Borg server is *NOT* up do date"
   fi
 
   unset BORG_PASSPHRASE
