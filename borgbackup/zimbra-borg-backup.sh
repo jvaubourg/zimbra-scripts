@@ -162,7 +162,7 @@ function borgBackupAccount() {
   zimbra-backup.sh ${backup_options} -d "${_debug_mode}" -e all_except_accounts -b "${_borg_local_folder_tmp}" -m "${email}"
 
   export BORG_PASSPHRASE="${passphrase}"
-  export BORG_RSH='ssh -oBatchMode=yes -i ${_borg_repo_ssh_key} -p ${ssh_port}'
+  export BORG_RSH="ssh -oBatchMode=yes -i ${_borg_repo_ssh_key} -p ${ssh_port}"
 
   log_debug "${email}: Try to init the Borg repository"
   borg init -e repokey "${ssh_repo}" &> /dev/null || true
