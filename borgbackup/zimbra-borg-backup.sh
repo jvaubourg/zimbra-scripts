@@ -177,7 +177,7 @@ _borg_local_folder_tmp="${_borg_local_folder_main}/tmp"
 _borg_local_folder_configs="${_borg_local_folder_main}/configs"
 _borg_repo_main='borg@testrestore.choca.pics:repo_chocapics'
 _borg_repo_accounts='borg@testrestore.choca.pics:repo_chocapics'
-_borg_repo_ssh_key="${_borg_repo_main}/private_ssh_key"
+_borg_repo_ssh_key="${_borg_local_folder_main}/private_ssh_key"
 _borg_repo_ssh_port=22
 
 _backups_include_accounts=
