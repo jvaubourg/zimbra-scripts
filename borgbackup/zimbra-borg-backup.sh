@@ -53,8 +53,9 @@ function exit_usage() {
   MAIN BORG REPOSITORY
 
     [Mandatory] -a borg_repo
-      Full Borg repository address for the main files (ie. for everything except accounts)
+      Full Borg+SSH repository address for the main files (ie. for everything except accounts)
       Passphrases of the repositories created for backuping the accounts will be saved in this repo
+      [Example] mailbackup@mybackups.example.com:main
       [Example] mailbackup@mybackups.example.com:myrepos/main
 
     [Mandatory] -z passphrase 
@@ -73,7 +74,8 @@ function exit_usage() {
     These options will be used as default when creating a new backup config file (along with -t and -k)
 
     [Mandatory] -r borg_repo
-      Full Borg address of a folder where to create the new repositories for the accounts
+      Full Borg+SSH address where to create new repositories for the accounts
+      [Example] mailbackup@mybackups.example.com:
       [Example] mailbackup@mybackups.example.com:myrepos
 
     -s path
@@ -95,13 +97,13 @@ function exit_usage() {
 
     File format:
       Filename: user@domain.tld
-        Line1: Full Borg repository address over SSH
+        Line1: Full Borg+SSH repository address
         Line2: SSH port to reach the remote Borg server
         Line3: Passphrase for the repository
         Line4: Custom options to pass to zimbra-backup.sh
 
     Example of content:
-        mailbackup@mybackups.example.com:myrepos/jdoe
+        mailbackup@mybackups.example.com:jdoe
         2222
         fBUgUqfp9n5kxu8V/ghbZaMx6Nyrg5FTh4nA70KlohE=
         -s .*/nobackup
@@ -159,11 +161,16 @@ function createAccountBackupFile() {
   local backup_file="${2}"
   local hash_email=$(printf '%s' "${email}" | sha256sum | cut -c 1-32)
   local generated_passphrase="$(openssl rand -base64 32)"
+  local separator=/
 
   # From this point, spaces in option values are no more preserved :(
   local backup_options=$(printf '%s ' "${_backups_options[@]}")
 
-  printf '%s\n' "${_borg_repo_accounts}/${hash_email}" > "${backup_file}"
+  if [ "${_borg_repo_accounts: -1}" -eq ':' ]; then
+    separator=
+  fi
+
+  printf '%s\n' "${_borg_repo_accounts}${separator}${hash_email}" > "${backup_file}"
   printf '%s\n' "${_borg_repo_ssh_port}" >> "${backup_file}"
   printf '%s\n' "${generated_passphrase}" >> "${backup_file}"
   printf '%s\n' "${backup_options}" >> "${backup_file}"
@@ -224,7 +231,7 @@ function borgBackupAccount() {
     createAccountBackupFile "${email}" "${backup_file}"
   fi
 
-  local ssh_repo=$(sed -n 1p "${backup_file}")
+  local borg_repo=$(sed -n 1p "${backup_file}")
   local ssh_port=$(sed -n 2p "${backup_file}")
   local passphrase=$(sed -n 3p "${backup_file}")
   local backup_options=$(sed -n 4p "${backup_file}")
@@ -233,12 +240,12 @@ function borgBackupAccount() {
   export BORG_RSH="ssh -oBatchMode=yes -i ${_borg_repo_ssh_key} -p ${ssh_port}"
 
   log_debug "${email}: Try to init a Borg repository for this account"
-  borg init ${_borg_debug_mode} -e repokey "${ssh_repo}" &> /dev/null || true
+  borg init ${_borg_debug_mode} -e repokey "${borg_repo}" &> /dev/null || true
 
-  if borg info ${_borg_debug_mode} "${ssh_repo}" > /dev/null; then
+  if borg info ${_borg_debug_mode} "${borg_repo}" > /dev/null; then
     log_debug "${email}: Check if the archive of the day already exists"
 
-    if borg info ${_borg_debug_mode} "${ssh_repo}::${new_archive}" &> /dev/null; then
+    if borg info ${_borg_debug_mode} "${borg_repo}::${new_archive}" &> /dev/null; then
       log_warn "${email}: The archive of the day (${new_archive}) already exists"
       log_warn "${email}: The backup on the Borg server might *NOT* be up do date"
     else
@@ -247,7 +254,7 @@ function borgBackupAccount() {
 
       log_info "${email}: Sending data to Borg (new archive ${new_archive} in the account repo)"
       pushd "${_borg_local_folder_tmp}/accounts/${email}" > /dev/null
-      borg create ${_borg_debug_mode} --stats --compression lz4 "${ssh_repo}::{now:%Y-%m-%d}" . || {
+      borg create ${_borg_debug_mode} --stats --compression lz4 "${borg_repo}::{now:%Y-%m-%d}" . || {
         log_err "${email}: The backup on the Borg server is *NOT* up do date"
       }
       popd > /dev/null
