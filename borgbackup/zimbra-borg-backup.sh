@@ -135,10 +135,13 @@ function createAccountBackupFile() {
   local hash_email=$(printf '%s' "${email}" | sha256sum | cut -c 1-32)
   local generated_passphrase="$(openssl rand -base64 32)"
 
+  # From this point, spaces in option values are no more preserved :(
+  local backup_options=$(printf '%s ' "${_backups_options[@]}")
+
   printf '%s\n' "${_borg_repo_accounts}/${hash_email}" > "${backup_file}"
   printf '%s\n' "${_borg_repo_ssh_port}" >> "${backup_file}"
   printf '%s\n' "${generated_passphrase}" >> "${backup_file}"
-  printf '%s\n' "${_backups_options[@]}" >> "${backup_file}"
+  printf '%s\n' "${backup_options}" >> "${backup_file}"
 }
 
 function borgBackupAccount() {
