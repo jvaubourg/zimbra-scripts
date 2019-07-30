@@ -38,7 +38,7 @@ function exit_usage() {
       [Default] ${_borg_local_folder_main}
 
       Subfolders will be:
-        tmp/: Temporary backups before syncing with Borg
+        tmp/: Temporary backups before sending data to Borg
         configs/: See BACKUP CONFIG FILES
 
     -p path
@@ -130,7 +130,7 @@ USAGE
 ####################
 
 function cleanFailedProcess() {
-  log_debug "Cleaning after fail"
+
 }
 
 function regenerateTmpFolder() {
@@ -154,7 +154,7 @@ function createAccountBackupFile() {
 }
 
 function borgBackupMain() {
-  log_debug "Main files: Backuping with zimbra-backup.sh"
+  log_info "Backuping using zimbra-backup.sh"
   zimbra-backup.sh -d "${_debug_mode}" -e accounts -b "${_borg_local_folder_tmp}"
 
   printf '%s\n' "${_accounts_to_backup}" > "${_borg_local_folder_tmp}/accounts_list"
@@ -163,10 +163,10 @@ function borgBackupMain() {
   export BORG_PASSPHRASE="${_borg_repo_main_passphrase}"
   export BORG_RSH="ssh -oBatchMode=yes -i ${_borg_repo_ssh_key} -p ${_borg_repo_ssh_port}"
 
-  log_debug "Main files: Try to init the Main Borg repository"
+  log_debug "Try to init the main Borg repository"
   borg init -e repokey "${_borg_repo_main}" &> /dev/null || true
 
-  log_info "Main files: Syncing with Borg server"
+  log_info "Creating a new Borg archive in the main repository"
   pushd "${_borg_local_folder_tmp}"
   borg create --compression lz4 "${_borg_repo_main}::{now:%Y-%m-%d}" .
   popd
@@ -189,16 +189,16 @@ function borgBackupAccount() {
   local passphrase=$(sed -n 3p "${backup_file}")
   local backup_options=$(sed -n 4p "${backup_file}")
 
-  log_debug "${email}: Backuping with zimbra-backup.sh"
+  log_info "${email}: Backuping using zimbra-backup.sh"
   zimbra-backup.sh ${backup_options} -d "${_debug_mode}" -e all_except_accounts -b "${_borg_local_folder_tmp}" -m "${email}"
 
   export BORG_PASSPHRASE="${passphrase}"
   export BORG_RSH="ssh -oBatchMode=yes -i ${_borg_repo_ssh_key} -p ${ssh_port}"
 
-  log_debug "${email}: Try to init the Borg repository"
+  log_debug "${email}: Try to init a Borg repository for this account"
   borg init -e repokey "${ssh_repo}" &> /dev/null || true
 
-  log_info "${email}: Syncing with Borg server"
+  log_info "${email}: Creating a new Borg archive in the dedicated repository"
   pushd "${_borg_local_folder_tmp}/accounts/${email}"
   borg create --compression lz4 "${ssh_repo}::{now:%Y-%m-%d}" .
   popd
@@ -293,26 +293,29 @@ fi
 
 install -b -m 0700 -o "${_zimbra_user}" -g "${_zimbra_group}" -d "${_borg_local_folder_main}"
 install -b -m 0700 -o "${_zimbra_user}" -g "${_zimbra_group}" -d "${_borg_local_folder_configs}"
+
+log_debug "Delete and recreate TMP folder"
 regenerateTmpFolder
 
 if [ -z "${_backups_include_accounts}" ]; then
-  log_info "Preparing accounts borgbackuping"
+  log_info "Preparing for accounts backuping"
 fi
 
 _accounts_to_backup=$(selectAccountsToBackup "${_backups_include_accounts}" "${_backups_exclude_accounts}")
 
-log_info "Borgbackuping the server configuration"
+log_info "Backuping server-related data"
 borgBackupMain
 
 if [ -z "${_accounts_to_backup}" ]; then
-  log_debug "No account to borgbackup"
+  log_debug "No account to backup"
 else
-  log_debug "Accounts to borgbackup: ${_accounts_to_backup}"
+  log_debug "Accounts to backup: ${_accounts_to_backup}"
 
   resetAccountProcessDuration
 
   # Backup accounts
   for email in ${_accounts_to_backup}; do
+    log_info "Backuping account <${email}>"
     borgBackupAccount "${email}"
   done
 

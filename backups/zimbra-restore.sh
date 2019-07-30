@@ -188,11 +188,11 @@ function selectAccountsToRestore() {
   echo -En ${accounts_to_restore}
 }
 
-# Return the size in human-readable bytes of a data.tgz file
+# Return the size in human-readable bytes of a data.tar file
 function getAccountDataFileSize() {
   local email="${1}"
   local backup_path="${_backups_path}/accounts/${email}"
-  local backup_file="${backup_path}/data.tgz"
+  local backup_file="${backup_path}/data.tar"
 
   printf "%s" "$(du -sh "${backup_file}" | awk '{ print $1 }')B"
 }
@@ -437,7 +437,7 @@ function zimbraRestoreAccountFilters() {
 function zimbraRestoreAccountData() {
   local email="${1}"
   local backup_path="${_backups_path}/accounts/${email}"
-  local backup_file="${backup_path}/data.tgz"
+  local backup_file="${backup_path}/data.tar"
 
   if [ ! -f "${backup_file}" -o ! -r "${backup_file}" ]; then
     log_err "File <${backup_file}> is missing, is not a regular file or is not readable"

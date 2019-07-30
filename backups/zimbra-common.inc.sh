@@ -260,7 +260,7 @@ function zimbraGetAccountDataSize() {
 function zimbraGetAccountData() {
   local email="${1}"
   local filter_query="${2}"
-  local cmd=(zmmailbox --zadmin --mailbox "${email}" getRestURL "//?fmt=tgz${filter_query}")
+  local cmd=(zmmailbox --zadmin --mailbox "${email}" getRestURL "//?fmt=tar${filter_query}")
 
   execZimbraCmd cmd
 }
@@ -428,7 +428,7 @@ function zimbraSetAccountFilters() {
 function zimbraSetAccountData() {
   local email="${1}"
   local backup_file="${2}"
-  local cmd=(zmmailbox --zadmin --mailbox "${email}" -t 0 postRestURL --url https://localhost:8443 '/?fmt=tgz&resolve=reset' "${backup_file}")
+  local cmd=(zmmailbox --zadmin --mailbox "${email}" -t 0 postRestURL --url https://localhost:8443 '/?fmt=tar&resolve=reset' "${backup_file}")
 
   execZimbraCmd cmd
 }

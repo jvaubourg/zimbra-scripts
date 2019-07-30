@@ -397,11 +397,11 @@ function zimbraBackupAccountFilters() {
 }
 
 # Save all the data for the account, with folders/mails/tasks/calendar/etc
-# A TGZ file is created and the size of the data to backup and to not backup are shown in logs
+# A TAR file is created and the size of the data to backup and to not backup are shown in logs
 function zimbraBackupAccountData() {
   local email="${1}"
   local backup_path="${_backups_path}/accounts/${email}"
-  local backup_file="${backup_path}/data.tgz"
+  local backup_file="${backup_path}/data.tar"
   local backup_data_size=0B
   local filter_query=
 
@@ -555,7 +555,7 @@ ${_exclude_lists} || {
 
 ${_exclude_accounts} || {
   if [ -z "${_backups_include_accounts}" ]; then
-    log_info "Preparing accounts backuping"
+    log_info "Preparing for accounts backuping"
   fi
   
   _accounts_to_backup=$(selectAccountsToBackup "${_backups_include_accounts}" "${_backups_exclude_accounts}")
