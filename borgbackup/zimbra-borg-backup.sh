@@ -139,7 +139,7 @@ function cleanFailedProcess() {
 
 # Remove and create again the Borg TMP folder where the backups are done before
 # sending data to the server
-function regenerateTmpFolder() {
+function emptyTmpFolder() {
   local ask_remove=y
   
   if [ "${_debug_mode}" -gt 0 ]; then
@@ -166,7 +166,7 @@ function createAccountBackupFile() {
   # From this point, spaces in option values are no more preserved :(
   local backup_options=$(printf '%s ' "${_backups_options[@]}")
 
-  if [ "${_borg_repo_accounts: -1}" -eq ':' ]; then
+  if [ "${_borg_repo_accounts: -1}" = ':' ]; then
     separator=
   fi
 
@@ -216,7 +216,7 @@ function borgBackupMain() {
   unset BORG_RSH
 
   log_debug "Renew the TMP folder"
-  regenerateTmpFolder
+  emptyTmpFolder
 }
 
 # Backup and send to borg only the information and data related to a specific account
@@ -268,7 +268,7 @@ function borgBackupAccount() {
   unset BORG_RSH
 
   log_debug "Renew the TMP folder"
-  regenerateTmpFolder
+  emptyTmpFolder
 }
 
 
@@ -364,7 +364,7 @@ install -b -m 0700 -o "${_zimbra_user}" -g "${_zimbra_group}" -d "${_borg_local_
 install -b -m 0700 -o "${_zimbra_user}" -g "${_zimbra_group}" -d "${_borg_local_folder_configs}"
 
 log_debug "Renew the TMP folder"
-regenerateTmpFolder
+emptyTmpFolder
 
 if [ -z "${_backups_include_accounts}" ]; then
   log_info "Preparing for accounts backuping"
