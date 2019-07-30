@@ -164,11 +164,7 @@ function createAccountBackupFile() {
 # Backup and send to Borg everything which is not related the account themselves
 # (eg. domains, lists, etc). A special "main" repository is used for that
 function borgBackupMain() {
-  log_info "Backuping using zimbra-backup.sh"
-  zimbra-backup.sh -d "${_debug_mode}" -e accounts -b "${_borg_local_folder_tmp}"
-
-  printf '%s\n' "${_accounts_to_backup}" > "${_borg_local_folder_tmp}/accounts_list"
-  cp -r "${_borg_local_folder_configs}" "${_borg_local_folder_tmp}/accounts_borg"
+  local new_archive="$(date +'%Y-%m-%d')"
 
   export BORG_PASSPHRASE="${_borg_repo_main_passphrase}"
   export BORG_RSH="ssh -oBatchMode=yes -i ${_borg_repo_ssh_key} -p ${_borg_repo_ssh_port}"
@@ -176,12 +172,32 @@ function borgBackupMain() {
   log_debug "Try to init the main Borg repository"
   borg init ${_borg_debug_mode} -e repokey "${_borg_repo_main}" &> /dev/null || true
 
-  log_info "Sending data to Borg (new archive $(date +'%Y-%m-%d') in the main repo)"
-  pushd "${_borg_local_folder_tmp}" > /dev/null
-  borg create ${_borg_debug_mode} --compression lz4 "${_borg_repo_main}::{now:%Y-%m-%d}" . || {
-    log_err "The backup on the Borg server might *NOT* be up do date"
-  }
-  popd > /dev/null
+  if borg info ${_borg_debug_mode} "${_borg_repo_main}" > /dev/null; then
+    log_err "The Borg server looks unreachable for the main repo"
+    log_err "The backup on the Borg server is *NOT* up do date"
+
+  else
+    log_debug "Check if the archive of the day already exists in the main repo"
+
+    if borg info ${_borg_debug_mode} "${_borg_repo_main}::${new_archive}" &> /dev/null; then
+      log_err "The archive of the day (${new_archive}) already exists"
+      log_err "The backup on the Borg server might *NOT* be up do date"
+
+    else
+      log_info "Backuping using zimbra-backup.sh"
+      zimbra-backup.sh -d "${_debug_mode}" -e accounts -b "${_borg_local_folder_tmp}"
+
+      printf '%s\n' "${_accounts_to_backup}" > "${_borg_local_folder_tmp}/accounts_list"
+      cp -r "${_borg_local_folder_configs}" "${_borg_local_folder_tmp}/accounts_borg"
+
+      log_info "Sending data to Borg (new archive ${new_archive} in the main repo)"
+      pushd "${_borg_local_folder_tmp}" > /dev/null
+      borg create ${_borg_debug_mode} --compression lz4 "${_borg_repo_main}::{now:%Y-%m-%d}" . || {
+        log_err "The backup on the Borg server is *NOT* up do date"
+      }
+      popd > /dev/null
+    fi
+  fi
 
   unset BORG_PASSPHRASE
   unset BORG_RSH
@@ -192,6 +208,7 @@ function borgBackupMain() {
 function borgBackupAccount() {
   local email="${1}"
   local backup_file="${_borg_local_folder_configs}/${email}"
+  local new_archive="$(date +'%Y-%m-%d')"
 
   if [ ! -f "${backup_file}" ]; then
     log_info "${email}: Creating a backup config file with default options"
@@ -203,26 +220,40 @@ function borgBackupAccount() {
   local passphrase=$(sed -n 3p "${backup_file}")
   local backup_options=$(sed -n 4p "${backup_file}")
 
-  log_info "${email}: Backuping using zimbra-backup.sh"
-  zimbra-backup.sh ${backup_options} -d "${_debug_mode}" -e all_except_accounts -b "${_borg_local_folder_tmp}" -m "${email}"
-
   export BORG_PASSPHRASE="${passphrase}"
   export BORG_RSH="ssh -oBatchMode=yes -i ${_borg_repo_ssh_key} -p ${ssh_port}"
 
   log_debug "${email}: Try to init a Borg repository for this account"
   borg init ${_borg_debug_mode} -e repokey "${ssh_repo}" &> /dev/null || true
 
-  log_info "${email}: Sending data to Borg (new archive $(date +'%Y-%m-%d') in the account repo)"
-  pushd "${_borg_local_folder_tmp}/accounts/${email}" > /dev/null
-  borg create ${_borg_debug_mode} --stats --compression lz4 "${ssh_repo}::{now:%Y-%m-%d}" . || {
-    log_err "${email}: The backup on the Borg server is probably *NOT* up do date"
-  }
-  popd > /dev/null
+  if borg info ${_borg_debug_mode} "${ssh_repo}" > /dev/null; then
+    log_err "${email}: The Borg server looks unreachable for this account"
+    log_err "${email}: The backup on the Borg server is *NOT* up do date"
+
+  else
+    log_debug "${email}: Check if the archive of the day already exists"
+
+    if borg info ${_borg_debug_mode} "${ssh_repo}::${new_archive}" &> /dev/null; then
+      log_err "${email}: The archive of the day (${new_archive}) already exists"
+      log_err "${email}: The backup on the Borg server might *NOT* be up do date"
+
+    else
+      log_info "${email}: Backuping using zimbra-backup.sh"
+      zimbra-backup.sh ${backup_options} -d "${_debug_mode}" -e all_except_accounts -b "${_borg_local_folder_tmp}" -m "${email}"
+
+      log_info "${email}: Sending data to Borg (new archive ${new_archive} in the account repo)"
+      pushd "${_borg_local_folder_tmp}/accounts/${email}" > /dev/null
+      borg create ${_borg_debug_mode} --stats --compression lz4 "${ssh_repo}::{now:%Y-%m-%d}" . || {
+        log_err "${email}: The backup on the Borg server is *NOT* up do date"
+      }
+      popd > /dev/null
+    fi
+  fi
 
   unset BORG_PASSPHRASE
   unset BORG_RSH
 
-  log_debug "Delete and recreate TMP folder"
+  log_debug "Renew the TMP folder"
   regenerateTmpFolder
 }
 
@@ -318,7 +349,7 @@ fi
 install -b -m 0700 -o "${_zimbra_user}" -g "${_zimbra_group}" -d "${_borg_local_folder_main}"
 install -b -m 0700 -o "${_zimbra_user}" -g "${_zimbra_group}" -d "${_borg_local_folder_configs}"
 
-log_debug "Delete and recreate TMP folder"
+log_debug "Renew the TMP folder"
 regenerateTmpFolder
 
 if [ -z "${_backups_include_accounts}" ]; then
