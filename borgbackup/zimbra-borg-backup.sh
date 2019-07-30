@@ -130,7 +130,7 @@ USAGE
 ####################
 
 function cleanFailedProcess() {
-
+  log_debug "Cleaning after fail"
 }
 
 function regenerateTmpFolder() {
