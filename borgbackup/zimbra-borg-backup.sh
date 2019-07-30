@@ -215,14 +215,14 @@ function borgBackupAccount() {
 ### GLOBAL VARIABLES ###
 ########################
 
+_borg_local_folder_main="${_zimbra_main_path}_borgbackup"
+_borg_local_folder_tmp="${_borg_local_folder_main}/tmp"
+_borg_local_folder_configs="${_borg_local_folder_main}/configs"
 _borg_repo_main=
 _borg_repo_main_passphrase=
 _borg_repo_accounts=
 _borg_repo_ssh_key="${_borg_local_folder_main}/private_ssh_key"
 _borg_repo_ssh_port=22
-_borg_local_folder_main="${_zimbra_main_path}_borgbackup"
-_borg_local_folder_tmp="${_borg_local_folder_main}/tmp"
-_borg_local_folder_configs="${_borg_local_folder_main}/configs"
 
 _backups_include_accounts=
 _backups_exclude_accounts=
