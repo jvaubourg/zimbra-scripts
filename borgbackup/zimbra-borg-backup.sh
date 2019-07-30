@@ -157,16 +157,21 @@ function borgBackupAccount() {
   local ssh_port=$(sed -n 2p "${backup_file}")
   local passphrase=$(sed -n 3p "${backup_file}")
   local backup_options=$(sed -n 4p "${backup_file}")
-  local env_config="BORG_PASSPHRASE=${passphrase} BORG_RSH='ssh -oBatchMode=yes -i ${_borg_repo_ssh_key} -p ${ssh_port}'"
 
   log_debug "${email}: Call zimbra-backup.sh for backuping"
   zimbra-backup.sh ${backup_options} -d "${_debug_mode}" -e all_except_accounts -b "${_borg_local_folder_tmp}" -m "${email}"
 
+  export BORG_PASSPHRASE="${passphrase}"
+  export BORG_RSH='ssh -oBatchMode=yes -i ${_borg_repo_ssh_key} -p ${ssh_port}'
+
   log_debug "${email}: Try to init the Borg repository"
-  ${env_config} borg init -e repokey "${ssh_repo}" &> /dev/null || true
+  borg init -e repokey "${ssh_repo}" &> /dev/null || true
 
   log_info "${email}: Syncing with Borg server"
-  ${env_config} borg create --compression lz4 "${ssh_repo}::{now:%Y-%m-%d}" "${_borg_local_folder_tmp}"
+  borg create --compression lz4 "${ssh_repo}::{now:%Y-%m-%d}" "${_borg_local_folder_tmp}"
+
+  unset BORG_PASSPHRASE
+  unset BORG_RSH
 }
 
 
