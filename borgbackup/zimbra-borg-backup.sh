@@ -138,8 +138,16 @@ function cleanFailedProcess() {
 # Remove and create again the Borg TMP folder where the backups are done before
 # sending data to the server
 function regenerateTmpFolder() {
-  rm -rf "${_borg_local_folder_tmp}"
-  install -b -m 0700 -o "${_zimbra_user}" -g "${_zimbra_group}" -d "${_borg_local_folder_tmp}"
+  local ask_remove=y
+  
+  if [ "${_debug_mode}" -gt 0 ]; then
+    read -p "Empty the Borg TMP folder <${_borg_local_folder_tmp}> (default: Y)? " ask_remove
+  fi
+
+  if [ -z "${ask_remove}" -o "${ask_remove}" = Y -o "${ask_remove}" = y ]; then
+    rm -rf "${_borg_local_folder_tmp}"
+    install -b -m 0700 -o "${_zimbra_user}" -g "${_zimbra_group}" -d "${_borg_local_folder_tmp}"
+  fi
 }
 
 # Create a config backup file for an account, containing the information about how to
@@ -176,8 +184,8 @@ function borgBackupMain() {
     log_debug "Check if the archive of the day already exists in the main repo"
 
     if borg info ${_borg_debug_mode} "${_borg_repo_main}::${new_archive}" &> /dev/null; then
-      log_err "The archive of the day (${new_archive}) already exists"
-      log_err "The backup on the Borg server might *NOT* be up do date"
+      log_warn "The archive of the day (${new_archive}) already exists"
+      log_warn "The backup on the Borg server might *NOT* be up do date"
     else
       log_info "Backuping using zimbra-backup.sh"
       zimbra-backup.sh -d "${_debug_mode}" -e accounts -b "${_borg_local_folder_tmp}"
@@ -199,6 +207,9 @@ function borgBackupMain() {
 
   unset BORG_PASSPHRASE
   unset BORG_RSH
+
+  log_debug "Renew the TMP folder"
+  regenerateTmpFolder
 }
 
 # Backup and send to borg only the information and data related to a specific account
@@ -228,8 +239,8 @@ function borgBackupAccount() {
     log_debug "${email}: Check if the archive of the day already exists"
 
     if borg info ${_borg_debug_mode} "${ssh_repo}::${new_archive}" &> /dev/null; then
-      log_err "${email}: The archive of the day (${new_archive}) already exists"
-      log_err "${email}: The backup on the Borg server might *NOT* be up do date"
+      log_warn "${email}: The archive of the day (${new_archive}) already exists"
+      log_warn "${email}: The backup on the Borg server might *NOT* be up do date"
     else
       log_info "${email}: Backuping using zimbra-backup.sh"
       zimbra-backup.sh ${backup_options} -d "${_debug_mode}" -e all_except_accounts -b "${_borg_local_folder_tmp}" -m "${email}"

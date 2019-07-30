@@ -46,7 +46,7 @@ function trap_exit() {
     log_err "Process aborted"
     cleanFailedProcess
   else
-    log_info "Process done"
+    log_debug "Process done"
   fi
 
   exit "${status}"
