@@ -8,6 +8,7 @@
 ########################
 
 # Default values (can be changed with parent script options)
+_log_id=UNKNOWN
 _backups_path='/tmp/zimbra_backups'
 _zimbra_main_path='/opt/zimbra'
 _zimbra_user='zimbra'
@@ -24,7 +25,7 @@ _zimbra_install_domain=
 ## GENERAL ##
 #############
 
-function log() { printf '%s| %s\n' "$(date +'%F %T')" "${1}"; }
+function log() { printf '%s| [%s]%s\n' "$(date +'%F %T')" "${_log_id}" "${1}"; }
 function log_debug() { ([ "${_debug_mode}" -ge 1 ] && log "[DEBUG] ${1}" >&2) || true; }
 function log_info() { log "[INFO] ${1}"; }
 function log_warn() { log "[WARN] ${1}" >&2; }

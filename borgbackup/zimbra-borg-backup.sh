@@ -215,6 +215,7 @@ function borgBackupAccount() {
 ### GLOBAL VARIABLES ###
 ########################
 
+_log_id=BORG-BACKUP
 _borg_local_folder_main="${_zimbra_main_path}_borgbackup"
 _borg_local_folder_tmp="${_borg_local_folder_main}/tmp"
 _borg_local_folder_configs="${_borg_local_folder_main}/configs"
@@ -308,10 +309,16 @@ if [ -z "${_accounts_to_backup}" ]; then
 else
   log_debug "Accounts to borgbackup: ${_accounts_to_backup}"
 
+  resetAccountProcessDuration
+
   # Backup accounts
   for email in ${_accounts_to_backup}; do
     borgBackupAccount "${email}"
   done
+
+  showAccountProcessDuration
 fi
+
+showFullProcessDuration
 
 exit 0

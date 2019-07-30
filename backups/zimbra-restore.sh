@@ -469,6 +469,7 @@ function zimbraRestoreAccountDataExcludedPaths() {
 ### GLOBAL VARIABLES ###
 ########################
 
+_log_id=ZIMBRA-RESTORE
 _backups_include_accounts=
 _backups_exclude_accounts=
 _option_force_change_passwords=false
