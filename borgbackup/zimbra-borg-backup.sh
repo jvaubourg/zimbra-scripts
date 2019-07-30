@@ -129,15 +129,23 @@ USAGE
 ## CORE FUNCTIONS ##
 ####################
 
+# Called by the main trap if an error occured and the script stops
+# Currently do nothing (Borg cannot really fail in the middle of an archive creation)
 function cleanFailedProcess() {
   log_debug "Cleaning after fail"
 }
 
+# Remove and create again the Borg TMP folder where the backups are done before
+# sending data to the server
 function regenerateTmpFolder() {
   rm -rf "${_borg_local_folder_tmp}"
   install -b -m 0700 -o "${_zimbra_user}" -g "${_zimbra_group}" -d "${_borg_local_folder_tmp}"
 }
 
+# Create a config backup file for an account, containing the information about how to
+# connect to the Borg server for this account, and so the repository to use
+# This function is only called when such a file doesn't already exist and uses the default
+# settings passed as options to the script
 function createAccountBackupFile() {
   local email="${1}"
   local backup_file="${2}"
@@ -153,6 +161,8 @@ function createAccountBackupFile() {
   printf '%s\n' "${backup_options}" >> "${backup_file}"
 }
 
+# Backup and send to Borg everything which is not related the account themselves
+# (eg. domains, lists, etc). A special "main" repository is used for that
 function borgBackupMain() {
   log_info "Backuping using zimbra-backup.sh"
   zimbra-backup.sh -d "${_debug_mode}" -e accounts -b "${_borg_local_folder_tmp}"
@@ -164,17 +174,19 @@ function borgBackupMain() {
   export BORG_RSH="ssh -oBatchMode=yes -i ${_borg_repo_ssh_key} -p ${_borg_repo_ssh_port}"
 
   log_debug "Try to init the main Borg repository"
-  borg init -e repokey "${_borg_repo_main}" &> /dev/null || true
+  borg init ${_borg_debug_mode} -e repokey "${_borg_repo_main}" &> /dev/null || true
 
   log_info "Sending data to Borg (new archive $(date +'%Y-%m-%d') in the main repo)"
   pushd "${_borg_local_folder_tmp}" > /dev/null
-  borg create --compression lz4 "${_borg_repo_main}::{now:%Y-%m-%d}" .
+  borg create ${_borg_debug_mode} --compression lz4 "${_borg_repo_main}::{now:%Y-%m-%d}" .
   popd > /dev/null
 
   unset BORG_PASSPHRASE
   unset BORG_RSH
 }
 
+# Backup and send to borg only the information and data related to a specific account
+# Every account is remotly backuped using a dedicated Borg repository
 function borgBackupAccount() {
   local email="${1}"
   local backup_file="${_borg_local_folder_configs}/${email}"
@@ -196,11 +208,13 @@ function borgBackupAccount() {
   export BORG_RSH="ssh -oBatchMode=yes -i ${_borg_repo_ssh_key} -p ${ssh_port}"
 
   log_debug "${email}: Try to init a Borg repository for this account"
-  borg init -e repokey "${ssh_repo}" &> /dev/null || true
+  borg init ${_borg_debug_mode} -e repokey "${ssh_repo}" &> /dev/null || true
 
   log_info "${email}: Sending data to Borg (new archive $(date +'%Y-%m-%d') in the account repo)"
   pushd "${_borg_local_folder_tmp}/accounts/${email}" > /dev/null
-  borg create --stats --compression lz4 "${ssh_repo}::{now:%Y-%m-%d}" .
+  borg create ${_borg_debug_mode} --stats --compression lz4 "${ssh_repo}::{now:%Y-%m-%d}" . || {
+    log_err "${email}: The backup on the Borg server is *NOT* up do date"
+  }
   popd > /dev/null
 
   unset BORG_PASSPHRASE
@@ -216,6 +230,7 @@ function borgBackupAccount() {
 ########################
 
 _log_id=BORG-BACKUP
+_borg_debug_mode=--warning # The default one
 _borg_local_folder_main="${_zimbra_main_path}_borgbackup"
 _borg_local_folder_tmp="${_borg_local_folder_main}/tmp"
 _borg_local_folder_configs="${_borg_local_folder_main}/configs"
@@ -271,6 +286,12 @@ if [ "${_debug_mode}" -ge 3 ]; then
   set -o xtrace
 fi
 
+if [ "${_debug_mode}" -ge 2 ]; then
+  _borg_debug_mode=--debug
+elif [ "${_debug_mode}" -ge 1 ]; then
+  _borg_debug_mode=--info
+fi
+
 if [ -z "${_borg_repo_main}" -o -z "${_borg_repo_main_passphrase}" -o -z "${_borg_repo_accounts}" ]; then
   log_err "Options -a, -z and -r are mandatory"
   exit 1
@@ -291,6 +312,7 @@ fi
 ### MAIN SCRIPT ###
 ###################
 
+# Create folders used in this script
 install -b -m 0700 -o "${_zimbra_user}" -g "${_zimbra_group}" -d "${_borg_local_folder_main}"
 install -b -m 0700 -o "${_zimbra_user}" -g "${_zimbra_group}" -d "${_borg_local_folder_configs}"
 
