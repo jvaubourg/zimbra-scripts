@@ -170,7 +170,7 @@ function zimbraGetDkimInfo() {
   local domain="${1}"
   local cmd=("${_zimbra_main_path}/libexec/zmdkimkeyutil" -q -d "${domain}")
 
-  execZimbraCmd cmd
+  execZimbraCmd cmd 2> /dev/null || true
 }
 
 function zimbraGetLists() {
