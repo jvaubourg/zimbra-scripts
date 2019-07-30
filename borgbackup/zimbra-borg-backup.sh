@@ -168,7 +168,7 @@ function borgBackupMain() {
 
   log_info "Creating a new Borg archive in the main repository"
   pushd "${_borg_local_folder_tmp}"
-  borg create --compression lz4 "${_borg_repo_main}::{now:%Y-%m-%d}" .
+  borg create --error --compression lz4 "${_borg_repo_main}::{now:%Y-%m-%d}" .
   popd
 
   unset BORG_PASSPHRASE
@@ -200,7 +200,7 @@ function borgBackupAccount() {
 
   log_info "${email}: Creating a new Borg archive in the dedicated repository"
   pushd "${_borg_local_folder_tmp}/accounts/${email}"
-  borg create --compression lz4 "${ssh_repo}::{now:%Y-%m-%d}" .
+  borg create --error --compression lz4 "${ssh_repo}::{now:%Y-%m-%d}" .
   popd
 
   unset BORG_PASSPHRASE
