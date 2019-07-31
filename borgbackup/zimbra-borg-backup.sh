@@ -31,11 +31,15 @@ function exit_usage() {
     -l
       See zimbra-backup.sh -h
 
+    -n
+      Do not backup server-related data (ie. domains, lists, etc), just accounts
+      [Default] Server-related data are backuped
+
   ENVIRONMENT
 
     -c path
       Main folder dedicated to this script
-      [Default] ${_borg_local_folder_main}
+      [Default] <zimbra_main_path>_borgackup (see -p)
 
       Subfolders will be:
         tmp/: Temporary backups before sending data to Borg
@@ -53,7 +57,7 @@ function exit_usage() {
   MAIN BORG REPOSITORY
 
     [Mandatory] -a borg_repo
-      Full Borg+SSH repository address for the main files (ie. for everything except accounts)
+      Full Borg+SSH repository address for server-related data (ie. for everything except accounts)
       Passphrases of the repositories created for backuping the accounts will be saved in this repo
       [Example] mailbackup@mybackups.example.com:main
       [Example] mailbackup@mybackups.example.com:myrepos/main
@@ -62,13 +66,13 @@ function exit_usage() {
       Passphrase of the Borg repository (see -a)
 
     -t port
-      SSH port to reach the remote Borg server (see -a and -r)
+      SSH port to reach all remote Borg servers (see -a and -r)
       [Default] ${_borg_repo_ssh_port}
 
     -k path
-      Path to the SSH private key to use to connect to the remote servers (see -a and -r)
+      Path to the SSH private key to use to connect to all remote servers (see -a and -r)
       This SSH key has to be configured without any passphrase
-      [Default] ${_borg_repo_ssh_key}
+      [Default] <main_folder>/private_ssh_key (see -c)
 
   DEFAULT BACKUP OPTIONS
     These options will be used as default when creating a new backup config file (along with -t and -k)
@@ -156,7 +160,7 @@ function emptyTmpFolder() {
 # connect to the Borg server for this account, and so the repository to use
 # This function is only called when such a file doesn't already exist and uses the default
 # settings passed as options to the script
-function createAccountBackupFile() {
+function createAccountBackupConfigFile() {
   local email="${1}"
   local backup_file="${2}"
   local hash_email=$(printf '%s' "${email}" | sha256sum | cut -c 1-32)
@@ -184,8 +188,7 @@ function borgBackupMain() {
   export BORG_PASSPHRASE="${_borg_repo_main_passphrase}"
   export BORG_RSH="ssh -oBatchMode=yes -i ${_borg_repo_ssh_key} -p ${_borg_repo_ssh_port}"
 
-  log_debug "Try to init the main Borg repository"
-  borg init ${_borg_debug_mode} -e repokey "${_borg_repo_main}" &> /dev/null || true
+  log_debug "Check if the main repository is reachable"
 
   if borg info ${_borg_debug_mode} "${_borg_repo_main}" > /dev/null; then
     log_debug "Check if the archive of the day already exists in the main repo"
@@ -197,8 +200,9 @@ function borgBackupMain() {
       log_info "Backuping using zimbra-backup.sh"
       zimbra-backup.sh -d "${_debug_mode}" -e accounts -b "${_borg_local_folder_tmp}"
 
-      printf '%s\n' "${_accounts_to_backup}" > "${_borg_local_folder_tmp}/accounts_list"
-      cp -r "${_borg_local_folder_configs}" "${_borg_local_folder_tmp}/accounts_borg"
+      # Save at the same time all backup config files in a borg/ folder
+      install -b -m 0700 -o "${_zimbra_user}" -g "${_zimbra_group}" -d "${_borg_local_folder_tmp}/borg/"
+      cp -a "${_borg_local_folder_configs}" "${_borg_local_folder_tmp}/borg/"
 
       log_info "Sending data to Borg (new archive ${new_archive} in the main repo)"
       pushd "${_borg_local_folder_tmp}" > /dev/null
@@ -212,8 +216,7 @@ function borgBackupMain() {
     log_err "The backup on the Borg server is *NOT* up do date"
   fi
 
-  unset BORG_PASSPHRASE
-  unset BORG_RSH
+  unset BORG_PASSPHRASE BORG_RSH
 
   log_debug "Renew the TMP folder"
   emptyTmpFolder
@@ -228,7 +231,7 @@ function borgBackupAccount() {
 
   if [ ! -f "${backup_file}" ]; then
     log_info "${email}: Creating a backup config file with default options"
-    createAccountBackupFile "${email}" "${backup_file}"
+    createAccountBackupConfigFile "${email}" "${backup_file}"
   fi
 
   local borg_repo=$(sed -n 1p "${backup_file}")
@@ -241,6 +244,8 @@ function borgBackupAccount() {
 
   log_debug "${email}: Try to init a Borg repository for this account"
   borg init ${_borg_debug_mode} -e repokey "${borg_repo}" &> /dev/null || true
+
+  log_debug "${email}: Check if the account repository is reachable"
 
   if borg info ${_borg_debug_mode} "${borg_repo}" > /dev/null; then
     log_debug "${email}: Check if the archive of the day already exists"
@@ -264,8 +269,7 @@ function borgBackupAccount() {
     log_err "${email}: The backup on the Borg server is *NOT* up do date"
   fi
 
-  unset BORG_PASSPHRASE
-  unset BORG_RSH
+  unset BORG_PASSPHRASE BORG_RSH
 
   log_debug "Renew the TMP folder"
   emptyTmpFolder
@@ -278,17 +282,18 @@ function borgBackupAccount() {
 
 _log_id=BORG-BACKUP
 _borg_debug_mode=--warning # The default one
-_borg_local_folder_main="${_zimbra_main_path}_borgbackup"
-_borg_local_folder_tmp="${_borg_local_folder_main}/tmp"
-_borg_local_folder_configs="${_borg_local_folder_main}/configs"
+_borg_local_folder_main=
+_borg_local_folder_tmp=
+_borg_local_folder_configs=
 _borg_repo_main=
 _borg_repo_main_passphrase=
 _borg_repo_accounts=
-_borg_repo_ssh_key="${_borg_local_folder_main}/private_ssh_key"
+_borg_repo_ssh_key=
 _borg_repo_ssh_port=22
 
 _backups_include_accounts=
 _backups_exclude_accounts=
+_backups_exclude_main=false
 _accounts_to_backup=
 _backups_options=()
 
@@ -301,11 +306,12 @@ trap 'exit 1' INT
 ### OPTIONS ###
 ###############
 
-while getopts 'm:x:lc:p:u:g:a:z:t:k:r:s:e:d:h' opt; do
+while getopts 'm:x:lnc:p:u:g:a:z:t:k:r:s:e:d:h' opt; do
   case "${opt}" in
     m) _backups_include_accounts=$(echo -En ${_backups_include_accounts} ${OPTARG}) ;;
     x) _backups_exclude_accounts=$(echo -En ${_backups_exclude_accounts} ${OPTARG}) ;;
     l) _backups_options+=(-l) ;;
+    n) _backups_exclude_main=true ;;
     c) _borg_local_folder_main="${OPTARG%/}" ;;
     p) _zimbra_main_path="${OPTARG%/}" ;;
     u) _zimbra_user="${OPTARG}" ;;
@@ -328,6 +334,19 @@ while getopts 'm:x:lc:p:u:g:a:z:t:k:r:s:e:d:h' opt; do
   esac
 done
 
+# Finish to set up variables depending on options
+if [ -z "${_borg_local_folder_main}" ]; then
+  _borg_local_folder_main="${_zimbra_main_path}_borgbackup"
+fi
+
+_borg_local_folder_tmp="${_borg_local_folder_main}/tmp"
+_borg_local_folder_configs="${_borg_local_folder_main}/configs"
+
+if [ -z "${_borg_repo_ssh_key}" ]; then
+  _borg_repo_ssh_key="${_borg_local_folder_main}/private_ssh_key"
+fi
+
+# Debug mode
 if [ "${_debug_mode}" -ge 3 ]; then
   set -o xtrace
 fi
@@ -338,6 +357,7 @@ elif [ "${_debug_mode}" -ge 1 ]; then
   _borg_debug_mode=--info
 fi
 
+# Check the consistency of the options
 if [ -z "${_borg_repo_main}" -o -z "${_borg_repo_main_passphrase}" -o -z "${_borg_repo_accounts}" ]; then
   log_err "Options -a, -z and -r are mandatory"
   exit 1
@@ -371,8 +391,10 @@ fi
 
 _accounts_to_backup=$(selectAccountsToBackup "${_backups_include_accounts}" "${_backups_exclude_accounts}")
 
-log_info "Backuping server-related data"
-borgBackupMain
+${_backups_exclude_main} || {
+  log_info "Backuping server-related data"
+  borgBackupMain
+}
 
 if [ -z "${_accounts_to_backup}" ]; then
   log_debug "No account to backup"

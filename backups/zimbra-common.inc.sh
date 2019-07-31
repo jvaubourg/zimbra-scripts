@@ -140,6 +140,34 @@ function selectAccountsToBackup() {
   echo -En ${accounts_to_backup}
 }
 
+# Return a list of email accounts to restore, depending on the include/exclude lists
+function selectAccountsToRestore() {
+  local include_accounts="${1}"
+  local exclude_accounts="${2}"
+  local accounts_to_restore="${include_accounts}"
+  
+  # Restore either accounts provided with -m, either all accounts,
+  # either all accounts minus the ones provided with -x
+  if [ -z "${accounts_to_restore}" ]; then
+    accounts_to_restore=$(ls "${_backups_path}/accounts")
+  
+    if [ -n "${exclude_accounts}" ]; then
+      accounts=
+  
+      for email in ${accounts_to_restore}; do
+        if [[ ! "${exclude_accounts}" =~ (^| )"${email}"($| ) ]]; then
+          accounts="${accounts} ${email}"
+        fi
+      done
+  
+      accounts_to_restore="${accounts}"
+    fi
+  fi
+
+  # echo is used to remove extra spaces
+  echo -En ${accounts_to_restore}
+}
+
 
 ######################
 ## ZIMBRA CLI & API ##
