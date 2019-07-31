@@ -1,5 +1,7 @@
 # zimbra-scripts
 
+WIP - Not ready to use
+
 ## Backup
 ### Locally using zimbra-backup.sh
     
