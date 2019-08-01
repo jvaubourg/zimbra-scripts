@@ -205,11 +205,11 @@ function borgBackupMain() {
       cp -a "${_borg_local_folder_configs}" "${_borg_local_folder_tmp}/borg/"
 
       log_info "Sending data to Borg (new archive ${new_archive} in the main repo)"
-      pushd "${_borg_local_folder_tmp}" > /dev/null
+      shellQuietPushd "${_borg_local_folder_tmp}"
       borg create ${_borg_debug_mode} --compression lz4 "${_borg_repo_main}::{now:%Y-%m-%d}" . || {
         log_err "The backup on the Borg server is *NOT* up do date"
       }
-      popd > /dev/null
+      shellQuietPopd
     fi
   else
     log_err "The Borg server or the main repository is currently unusable"
@@ -258,11 +258,11 @@ function borgBackupAccount() {
       zimbra-backup.sh ${backup_options} -d "${_debug_mode}" -e all_except_accounts -b "${_borg_local_folder_tmp}" -m "${email}"
 
       log_info "${email}: Sending data to Borg (new archive ${new_archive} in the account repo)"
-      pushd "${_borg_local_folder_tmp}/accounts/${email}" > /dev/null
+      shellQuietPushd "${_borg_local_folder_tmp}/accounts/${email}"
       borg create ${_borg_debug_mode} --stats --compression lz4 "${borg_repo}::{now:%Y-%m-%d}" . || {
         log_err "${email}: The backup on the Borg server is *NOT* up do date"
       }
-      popd > /dev/null
+      shellQuietPopd
     fi
   else
     log_err "${email}: The Borg server or the repository is currently unusable for this account"

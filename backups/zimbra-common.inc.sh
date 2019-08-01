@@ -468,3 +468,11 @@ function zimbraCreateDataFolder() {
 
   execZimbraCmd cmd | hideReturnedId
 }
+
+function shellQuietPopd() {
+  command popd > /dev/null
+}
+
+function shellQuietPushd() {
+  command pushd "$@" > /dev/null
+}
