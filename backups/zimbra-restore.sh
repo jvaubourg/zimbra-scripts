@@ -555,28 +555,28 @@ ${_exclude_lists} || {
 
 ${_exclude_accounts} || {
   _accounts_to_restore=$(selectAccountsToRestore "${_backups_include_accounts}" "${_backups_exclude_accounts}")
-  
+
   if [ -z "${_accounts_to_restore}" ]; then
     log_debug "No account to restore"
   else
     log_debug "Accounts to restore: ${_accounts_to_restore}"
-  
+
     # Restore accounts
     for email in ${_accounts_to_restore}; do
       if zimbraIsAccountExisting "${email}"; then
         log_warn "Skip account <${email}> (already exists in Zimbra)"
       else
         resetAccountProcessDuration
-  
+
         # Create account
         if zimbraIsInstallUser "${email}"; then
           log_debug "Skip account <${email}> creation (install user)"
         else
           log_info "Creating account <${email}>"
           zimbraRestoreAccount "${email}"
-  
+
           _restoring_account="${email}"
-  
+
           # Restore the password or keep the generated one
           if ${_option_reset_passwords}; then
             log_info "${email}: New password is ${_generated_account_passwords["${email}"]}"
@@ -584,56 +584,56 @@ ${_exclude_accounts} || {
             log_info "${email}: Restoring former password"
             zimbraRestoreAccountPassword "${email}"
           fi
-  
+
           # Force password changing
           if ${_option_force_change_passwords}; then
             log_info "${email}: Force user to change the password next time they log in"
             zimbraRestoreAccountForcePasswordChanging "${email}"
           fi
         fi
-  
+
         # Restore other settings and data
         log_info "Restoring account <${email}>"
-  
+
         log_info "${email}: Locking the account"
         zimbraRestoreAccountLock "${email}"
-  
+
         ${_exclude_aliases} || {
           log_info "${email}: Restoring aliases"
           zimbraRestoreAccountAliases "${email}"
         }
-    
+
         ${_exclude_signatures} || {
           log_info "${email}: Restoring signatures"
           zimbraRestoreAccountSignatures "${email}"
         }
-    
+
         ${_exclude_filters} || {
           log_info "${email}: Restoring filters"
           zimbraRestoreAccountFilters "${email}"
         }
-  
+
         ${_exclude_settings} || {
           log_info "${email}: Restoring settings"
-  
+
           log_debug "${email}: Restore CatchAll setting"
           zimbraRestoreAccountCatchAll "${email}"
-  
+
           log_debug "${email}: Restore Forwarding setting"
           zimbraRestoreAccountForwarding "${email}"
         }
-    
+
         ${_exclude_data} || {
           log_info "${email}: Restoring data ($(getAccountDataFileSize "${email}") compressed)"
           zimbraRestoreAccountData "${email}"
-  
+
           log_debug "${email}: Restore excluded paths as empty folders"
           zimbraRestoreAccountDataExcludedPaths "${email}"
         }
-  
+
         log_info "${email}: Unlocking the account"
         zimbraRestoreAccountUnlock "${email}"
-    
+
         showAccountProcessDuration
         _restoring_account=
       fi

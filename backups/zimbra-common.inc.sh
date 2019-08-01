@@ -86,7 +86,7 @@ function execZimbraCmd() {
   # local -n command="${1}"
 
   local path="PATH=/sbin:/bin:/usr/sbin:/usr/bin:${_zimbra_main_path}/bin:${_zimbra_main_path}/libexec"
-  
+
   if [ "${_debug_mode}" -ge 2 ]; then
     log_debug "CMD: ${cmd[*]}"
   fi
@@ -122,16 +122,16 @@ function selectAccountsToBackup() {
   if [ -z "${accounts_to_backup}" ]; then
     accounts_to_backup=$(zimbraGetAccounts)
     log_debug "Existing accounts: ${accounts_to_backup}"
-  
+
     if [ -n "${exclude_accounts}" ]; then
       accounts=
-  
+
       for email in ${accounts_to_backup}; do
         if [[ ! "${exclude_accounts}" =~ (^| )"${email}"($| ) ]]; then
           accounts="${accounts} ${email}"
         fi
       done
-  
+
       accounts_to_backup="${accounts}"
     fi
   fi
@@ -145,21 +145,21 @@ function selectAccountsToRestore() {
   local include_accounts="${1}"
   local exclude_accounts="${2}"
   local accounts_to_restore="${include_accounts}"
-  
+
   # Restore either accounts provided with -m, either all accounts,
   # either all accounts minus the ones provided with -x
   if [ -z "${accounts_to_restore}" ]; then
     accounts_to_restore=$(ls "${_backups_path}/accounts")
-  
+
     if [ -n "${exclude_accounts}" ]; then
       accounts=
-  
+
       for email in ${accounts_to_restore}; do
         if [[ ! "${exclude_accounts}" =~ (^| )"${email}"($| ) ]]; then
           accounts="${accounts} ${email}"
         fi
       done
-  
+
       accounts_to_restore="${accounts}"
     fi
   fi
