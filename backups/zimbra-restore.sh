@@ -553,7 +553,7 @@ ${_exclude_lists} || {
   zimbraRestoreLists
 }
 
-${_exclude_accounts} || {
+${_exclude_accounts} || {
   _accounts_to_restore=$(selectAccountsToRestore "${_backups_include_accounts}" "${_backups_exclude_accounts}")
   
   if [ -z "${_accounts_to_restore}" ]; then

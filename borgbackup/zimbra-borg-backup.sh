@@ -391,7 +391,7 @@ fi
 
 _accounts_to_backup=$(selectAccountsToBackup "${_backups_include_accounts}" "${_backups_exclude_accounts}")
 
-${_backups_exclude_main} || {
+${_backups_exclude_main} || {
   log_info "Backuping server-related data"
   borgBackupMain
 }
