@@ -157,7 +157,7 @@ function extractFromAccountSettingsFile() {
   local email="${1}"
   local field="${2}"
   local backup_file="${_backups_path}/accounts/${email}/settings"
-  local value=$((grep "^${field}:" "${backup_file}" || true) | sed "s/^${field}: //")
+  local value=$( (sed -n -e '/^'$field':/,/^[a-zA-Z0-9]*:/ p' ${backup_file} || true) | sed '$ d' | sed -e 's/^'$field': //g')
 
   printf '%s' "${value}"
 }
