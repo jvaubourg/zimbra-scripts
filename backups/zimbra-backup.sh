@@ -382,7 +382,7 @@ function zimbraBackupAccountSignatures() {
       # Save the name of the signature in the first line
       # Rename the file to indicate if the signature is html or plain text
       local backup_file="${tmp_backup_file}.${extension}"
-      printf '%s' "${name}" > "${backup_file}"
+      printf '%s\n' "${name}" > "${backup_file}"
 
       # Remove every line corresponding to a Zimbra field and not the signature content itself
       (grep -iv '^zimbra[a-z]\+: ' "${tmp_backup_file}" || true) >> "${backup_file}"
