@@ -215,6 +215,13 @@ function zimbraGetListMembers() {
   execZimbraCmd cmd
 }
 
+function zimbraGetListAliases() {
+  local list_email="${1}"
+  local cmd=(zmprov --ldap getDistributionList "${list_email}")
+
+  execZimbraCmd cmd | awk ' /^zimbraMailAlias:/ { print $2 } '
+}
+
 function zimbraGetAccounts() {
   local cmd=(zmprov --ldap getAllAccounts)
 
@@ -347,6 +354,14 @@ function zimbraSetListMember() {
   local list_email="${1}"
   local member_email="${2}"
   local cmd=(zmprov addDistributionListMember "${list_email}" "${member_email}")
+
+  execZimbraCmd cmd
+}
+
+function zimbraSetListAlias() {
+  local list_email="${1}"
+  local alias_email="${2}"
+  local cmd=(zmprov addDistributionListAlias "${list_email}" "${alias_email}")
 
   execZimbraCmd cmd
 }
