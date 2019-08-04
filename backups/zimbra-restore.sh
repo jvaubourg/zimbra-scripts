@@ -434,6 +434,35 @@ function zimbraRestoreAccountFilters() {
   zimbraSetAccountFilters "${email}" "${backup_file}"
 }
 
+# Restore Out Of Office settings for the account
+function zimbraRestoreAccountOOO() {
+  local ooo_settings="zimbraFeatureOutOfOfficeReplyEnabled
+                      zimbraPrefOutOfOfficeCacheDuration
+                      zimbraPrefOutOfOfficeExternalReply
+                      zimbraPrefOutOfOfficeExternalReplyEnabled
+                      zimbraPrefOutOfOfficeFromDate
+                      zimbraPrefOutOfOfficeReply
+                      zimbraPrefOutOfOfficeReplyEnabled
+                      zimbraPrefOutOfOfficeStatusAlertOnLogin
+                      zimbraPrefOutOfOfficeUntilDate"
+
+  local email="${1}"
+  local backup_path="${_backups_path}/accounts/${email}"
+  local backup_file="${backup_path}/settings"
+
+  if [ ! -f "${backup_file}" -o ! -r "${backup_file}" ]; then
+    log_err "${email}: File <${backup_file}> is missing, is not a regular file or is not readable"
+    log_err "${email}: Account Out Of Office settings will *NOT* be restored"
+    return
+  fi
+
+  for field in $ooo_settings; do
+     local value=$(extractFromAccountSettingsFile $email $field)
+     zimbraSetAccount "${email}" "${field}" "${value}"
+  done
+
+}
+
 # Restore all the data for the account, with folders/mails/tasks/calendar/etc
 function zimbraRestoreAccountData() {
   local email="${1}"
@@ -643,6 +672,9 @@ ${_exclude_accounts} || {
   
           log_debug "${email}: Restore Forwarding setting"
           zimbraRestoreAccountForwarding "${email}"
+
+          log_debug "${email}: Restore OutOfOffice settings"
+          zimbraRestoreAccountOOO "${email}"
         }
     
         ${_exclude_data} || {

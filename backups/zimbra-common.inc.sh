@@ -413,6 +413,17 @@ function zimbraSetAccountLock() {
   execZimbraCmd cmd
 }
 
+function zimbraSetAccount() {
+  local email="${1}"
+  local field="${2}"
+  local value="${3}"
+
+  cmd=(zmprov modifyAccount "${email}" "${field}" "${value}")
+
+  execZimbraCmd cmd
+}
+
+
 function zimbraSetAccountCatchAll() {
   local email="${1}"
   local at_domain="${2}"
