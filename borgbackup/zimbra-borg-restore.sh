@@ -116,15 +116,19 @@ USAGE
 function cleanFailedProcess() {
   log_debug "Cleaning after fail"
 
-  for mount_folder in "${_used_system_mountpoints[@]}"; do
-    log_debug "Umounting <${mount_folder}>"
-    umount "${mount_folder}"
-  done
+  if [ "${#_used_system_mountpoints[@]}" -gt 0 ]; then
+    for mount_folder in "${!_used_system_mountpoints[@]}"; do
+      log_debug "Umounting <${mount_folder}>"
+      umount "${mount_folder}"
+    done
+  fi
 
-  for mount_folder in "${_used_borg_mountpoints[@]}"; do
-    log_debug "Borg umounting <${mount_folder}>"
-    borg umount "${mount_folder}"
-  done
+  if [ "${#_used_borg_mountpoints[@]}" -gt 0 ]; then
+    for mount_folder in "${!_used_borg_mountpoints[@]}"; do
+      log_debug "Borg umounting <${mount_folder}>"
+      borg umount "${mount_folder}"
+    done
+  fi
 }
 
 # Remove and create again the Borg TMP folder where the backups are done before
@@ -162,7 +166,7 @@ function borgCopyMain() {
       exit 1
     }
 
-    _used_borg_mountpoints+=("${mount_folder}")
+    _used_borg_mountpoints["${mount_folder}"]=1
 
     # Target the only one archive (--last 1) inside the repository
     archive_folder=$(find "${mount_folder}" -mindepth 1 -maxdepth 1 | head -n 1)
@@ -178,7 +182,7 @@ function borgCopyMain() {
       exit 1
     }
 
-    _used_borg_mountpoints+=("${mount_folder}")
+    _used_borg_mountpoints["${mount_folder}"]=1
     archive_folder="${mount_folder}"
   fi
 
@@ -197,7 +201,7 @@ function borgCopyMain() {
 
   # Umount the repository
   borg umount "${mount_folder}"
-  unset _used_borg_mountpoints[-1]
+  unset _used_borg_mountpoints["${mount_folder}"]
   rmdir "${mount_folder}"
 }
 
@@ -211,12 +215,12 @@ function selectAccountsToBorgRestore() {
   local mount_folder="${_borg_local_folder_tmp}/accounts"
 
   mount -o bind "${_borg_local_folder_configs}" "${mount_folder}"
-  _used_system_mountpoints+=("${mount_folder}")
+  _used_system_mountpoints["${mount_folder}"]=1
 
   accounts_to_restore=$(selectAccountsToRestore "${_backups_include_accounts}" "${_backups_exclude_accounts}")
 
   umount "${mount_folder}"
-  unset _used_system_mountpoints[-1]
+  unset _used_system_mountpoints["${mount_folder}"]
 
   print '%s' "${accounts_to_restore}"
 }
@@ -251,7 +255,7 @@ function borgRestoreAccount() {
       return
     }
 
-    _used_borg_mountpoints+=("${mount_folder}")
+    _used_borg_mountpoints["${mount_folder}"]=1
 
     # Target the only one archive (--last 1) inside the repository
     archive_folder=$(find "${mount_folder}" -mindepth 1 -maxdepth 1 | head -n 1)
@@ -269,7 +273,7 @@ function borgRestoreAccount() {
       return
     }
 
-    _used_borg_mountpoints+=("${mount_folder}")
+    _used_borg_mountpoints["${mount_folder}"]=1
     archive_folder="${mount_folder}"
   fi
 
@@ -277,17 +281,17 @@ function borgRestoreAccount() {
 
   # Mount the archive into the account folder to let zimbra-restore.sh find it
   mount -o bind "${archive_folder}" "${account_folder}"
-  _used_system_mountpoints+=("${account_folder}")
+  _used_system_mountpoints["${account_folder}"]=1
 
   log_info "${email}: Restoring using zimbra-restore.sh"
   zimbra-restore.sh "${_restore_options[@]}" -d "${_debug_mode}" -e all_except_accounts -b "${_borg_local_folder_tmp}" -m "${email}"
 
   # Umount repository and bound account folder
   umount "${account_folder}"
-  unset _used_system_mountpoints[-1]
+  unset _used_system_mountpoints["${account_folder}"]
 
   borg umount "${mount_folder}"
-  unset _used_borg_mountpoints[-1]
+  unset _used_borg_mountpoints["${mount_folder}"]
 
   rmdir "${mount_folder}" "${account_folder}"
 }
@@ -317,8 +321,8 @@ _accounts_to_restore=
 _restore_archive_date=
 _restore_options=()
 
-_used_borg_mountpoints=()
-_used_system_mountpoints=()
+declare -A _used_borg_mountpoints
+declare -A _used_system_mountpoints
 
 # Traps
 trap 'trap_exit $LINENO' EXIT TERM ERR
