@@ -170,9 +170,12 @@ function createAccountBackupConfigFile() {
   local hash_email=$(printf '%s' "${email}" | sha256sum | cut -c 1-32)
   local generated_passphrase="$(openssl rand -base64 32)"
   local separator=/
+  local backup_options=
 
   # From this point, spaces in option values are no more preserved :(
-  local backup_options=$(printf '%s ' "${_backups_options[@]}")
+  if [ "${#_backups_options[@]}" -gt 0 ]; then
+    backup_options=$(printf '%s ' "${_backups_options[@]}")
+  fi
 
   if [ "${_borg_repo_accounts: -1}" = ':' ]; then
     separator=
@@ -300,7 +303,7 @@ _backups_exclude_accounts=
 _backups_exclude_main=false
 _backups_exclude_allaccounts=false
 _accounts_to_backup=
-_backups_options=('')
+_backups_options=()
 
 # Traps
 trap 'trap_exit $LINENO' EXIT TERM ERR

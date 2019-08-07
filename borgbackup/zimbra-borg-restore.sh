@@ -284,7 +284,11 @@ function borgRestoreAccount() {
   _used_system_mountpoints["${account_folder}"]=1
 
   log_info "${email}: Restoring using zimbra-restore.sh"
-  zimbra-restore.sh "${_restore_options[@]}" -d "${_debug_mode}" -e all_except_accounts -b "${_borg_local_folder_tmp}" -m "${email}"
+  _restore_options+=('-d', "${_debug_mode}")
+  _restore_options+=('-e', 'all_except_accounts')
+  _restore_options+=('-b', "${_borg_local_folder_tmp}")
+  _restore_options+=('-m', "${email}")
+  zimbra-restore.sh "${_restore_options[@]}"
 
   # Umount repository and bound account folder
   umount "${account_folder}"
@@ -319,7 +323,7 @@ _backups_exclude_main=false
 _backups_exclude_allaccounts=false
 _accounts_to_restore=
 _restore_archive_date=
-_restore_options=('')
+_restore_options=()
 
 declare -A _used_borg_mountpoints
 declare -A _used_system_mountpoints
