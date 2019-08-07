@@ -45,15 +45,15 @@ function exit_usage() {
 
     -c path
       Main folder dedicated to this script
-      [Default] <zimbra_main_path>_borgackup (see -p)
+      [Default] <zimbra_main_path>_borgbackup (see -p)
 
       Subfolders will be:
         tmp/: Temporary backups before sending data to Borg
         configs/: See BACKUP CONFIG FILES
 
     -p path
-      Where to save the backups
-      [Default] ${_backups_path}
+      Main path of the Zimbra installation
+      [Default] ${_zimbra_main_path}
 
     -u user
       Zimbra UNIX user
@@ -166,10 +166,10 @@ function exit_usage() {
         (when no backup config file already exists for them in /opt/zimbra_borgackup/configs/)
 
         zimbra-borg-backup.sh\
-          -a mailbackup@mybackups.example.com:main\
-          -z 'JRX2jVkRDpH6+OQ9hw/7sWn4F0OBps42I2TQ6DvRIgI='\
-          -k /root/borg/sshkey.priv\
-          -t 2222\
+          -a mailbackup@mybackups.example.com:main\\
+          -z 'JRX2jVkRDpH6+OQ9hw/7sWn4F0OBps42I2TQ6DvRIgI='\\
+          -k /root/borg/sshkey.priv\\
+          -t 2222\\
           -r mailbackup@mybackups.example.com:users/
 
     (2) Backup only the account jdoe@example.com but not the server-related data.
@@ -179,12 +179,12 @@ function exit_usage() {
         and a backup config file will be created in /opt/zimbra_borgackup/configs/
 
         zimbra-borg-backup.sh\
-          -a mailbackup@mybackups.example.com:main\
-          -z 'JRX2jVkRDpH6+OQ9hw/7sWn4F0OBps42I2TQ6DvRIgI='\
-          -k /root/borg/sshkey.priv\
-          -t 2222\
-          -r mailbackup@mybackups.example.com:users/\
-          -E server\
+          -a mailbackup@mybackups.example.com:main\\
+          -z 'JRX2jVkRDpH6+OQ9hw/7sWn4F0OBps42I2TQ6DvRIgI='\\
+          -k /root/borg/sshkey.priv\\
+          -t 2222\\
+          -r mailbackup@mybackups.example.com:users/\\
+          -E server\\
           -m jdoe@example.com
 
 USAGE

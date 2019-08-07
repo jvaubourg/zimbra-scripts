@@ -52,15 +52,15 @@ function exit_usage() {
 
     -c path
       Main folder dedicated to this script
-      [Default] ${_borg_local_folder_main}
+      [Default] <zimbra_main_path>_borgbackup (see -p)
 
       Subfolders will be:
         tmp/: Temporary backups before sending data to Borg
         configs/: See BACKUP CONFIG FILES
 
     -p path
-      Where the backups are
-      [Default] ${_backups_path}
+      Main path of the Zimbra installation
+      [Default] ${_zimbra_main_path}
 
     -u user
       Zimbra UNIX user
@@ -128,21 +128,21 @@ function exit_usage() {
         then the accounts will be restored one by one, using the backup config files available in the
         :main repo. Last archive of every Borg repo is used
 
-        zimbra-borg-restore.sh\
-          -a borg@testrestore.choca.pics:main\
-          -z 'JRX2jVkRDpH6+OQ9hw/7sWn4F0OBps42I2TQ6DvRIgI='\
-          -k /root/borg/sshkey.priv\
+        zimbra-borg-restore.sh\\
+          -a borg@testrestore.choca.pics:main\\
+          -z 'JRX2jVkRDpH6+OQ9hw/7sWn4F0OBps42I2TQ6DvRIgI='\\
+          -k /root/borg/sshkey.priv\\
           -t 2222
 
     (2) Restore only the account jdoe@example.com (who is not existing anymore in Zimbra) but
         not the server-related data
 
-        zimbra-borg-restore.sh\
-          -a borg@testrestore.choca.pics:main\
-          -z 'JRX2jVkRDpH6+OQ9hw/7sWn4F0OBps42I2TQ6DvRIgI='\
-          -k /root/borg/sshkey.priv\
-          -t 2222\
-          -E server\
+        zimbra-borg-restore.sh\\
+          -a borg@testrestore.choca.pics:main\\
+          -z 'JRX2jVkRDpH6+OQ9hw/7sWn4F0OBps42I2TQ6DvRIgI='\\
+          -k /root/borg/sshkey.priv\\
+          -t 2222\\
+          -E server\\
           -m jdoe@example.com
 
 USAGE
