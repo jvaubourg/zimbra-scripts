@@ -34,14 +34,6 @@ function exit_usage() {
     -r
       See zimbra-restore.sh -h
 
-    -n
-      Do not restore server-related data (ie. domains, lists, etc), just accounts
-      [Default] Server-related data are restored
-
-    -o
-      Do not backup any account, just server-related data
-      [Default] Accounts are backuped, depending on the -m or -x option (or neither or them)
-
   ENVIRONMENT
 
     -i date
@@ -65,6 +57,20 @@ function exit_usage() {
 
     -g group
       See zimbra-restore.sh -h
+
+  EXCLUSIONS
+
+    -E ASSET
+      Do a partial restore, by excluding some settings/data
+      [Default] Everything is restored
+
+      ASSET can be:
+        server
+          Do not restore server-related data (ie. domains, lists, etc), just accounts
+        accounts
+          Do not restore any account, just server-related data
+        all_except_data
+          Only restore the contents of the mailboxes, not the accounts neither the server-related data
 
   MAIN BORG REPOSITORY
 
@@ -285,7 +291,7 @@ function borgRestoreAccount() {
 
   log_info "${email}: Restoring using zimbra-restore.sh"
   _restore_options+=(-d "${_debug_mode}")
-  _restore_options+=(-e 'all_except_accounts')
+  _restore_options+=(-e "${_restore_exclusion_asset}")
   _restore_options+=(-b "${_borg_local_folder_tmp}")
   _restore_options+=(-m "${email}")
   zimbra-restore.sh "${_restore_options[@]}"
@@ -319,9 +325,10 @@ _borg_repo_ssh_port=22
 _backups_path=
 _backups_include_accounts=
 _backups_exclude_accounts=
-_backups_exclude_main=false
-_backups_exclude_allaccounts=false
+_exclude_main=false
+_exclude_accounts=false
 _accounts_to_restore=
+_restore_exclusion_asset=all_except_accounts
 _restore_archive_date=
 _restore_options=()
 
@@ -337,19 +344,26 @@ trap 'exit 1' INT
 ### OPTIONS ###
 ###############
 
-while getopts 'm:x:frnoi:c:p:u:g:a:z:t:k:d:h' opt; do
+while getopts 'm:x:fri:c:p:u:g:E:a:z:t:k:d:h' opt; do
   case "${opt}" in
     m) _backups_include_accounts=$(echo -En ${_backups_include_accounts} ${OPTARG}) ;;
     x) _backups_exclude_accounts=$(echo -En ${_backups_exclude_accounts} ${OPTARG}) ;;
     f) _restore_options+=(-f) ;;
     r) _restore_options+=(-r) ;;
-    n) _backups_exclude_main=true ;;
-    o) _backups_exclude_allaccounts=true ;;
     i) _restore_archive_date="${OPTARG}" ;;
     c) _borg_local_folder_main="${OPTARG%/}" ;;
     p) _zimbra_main_path="${OPTARG%/}" ;;
     u) _zimbra_user="${OPTARG}" ;;
     g) _zimbra_group="${OPTARG}" ;;
+    E) case "${OPTARG}" in
+         server) _exclude_main=true ;;
+         accounts) _exclude_accounts=true ;;
+         all_except_data)
+           _exclude_main=true
+           _exclude_accounts=false
+           _restore_exclusion_asset=all_except_data ;;
+         *) log_err "Value <${OPTARG}> not supported by option -E"; exit_usage 1 ;;
+       esac ;;
     a) _borg_repo_main="${OPTARG%/}" ;;
     z) _borg_repo_main_passphrase="${OPTARG%/}" ;;
     t) _borg_repo_ssh_port="${OPTARG}" ;;
@@ -395,19 +409,9 @@ if [ -n "${_backups_include_accounts}" -a -n "${_backups_exclude_accounts}" ]; t
   exit 1
 fi
 
-if ${_backups_exclude_allaccounts} && [ -n "${_backups_include_accounts}" ]; then
-  log_err "Options -n and -m are not compatible"
-  exit 1
-fi
-
 if [ ! -d "${_zimbra_main_path}" -o ! -x "${_zimbra_main_path}" ]; then
   log_err "Zimbra path <${_zimbra_main_path}> doesn't exist, is not a directory or is not executable"
   exit 1
-fi
-
-if ${_backups_exclude_main} && ${_backups_exclude_allaccounts}; then
-  log_err "Options -n and -o set: nothing to do"
-  exit 0
 fi
 
 
@@ -422,15 +426,17 @@ install -b -m 0700 -o "${_zimbra_user}" -g "${_zimbra_group}" -d "${_borg_local_
 log_debug "Renew the TMP folder"
 emptyTmpFolder
 
-log_info "Mounting and copying files from the main repository"
-borgCopyMain
+(${_exclude_main} && ${_exclude_accounts}) || [
+  log_info "Mounting and copying files from the main repository"
+  borgCopyMain
+}
 
-${_backups_exclude_main} || {
+${_exclude_main} || {
   log_info "Restoring server-related data"
   restoreMain
 }
 
-${_backups_exclude_allaccounts} || {
+${_exclude_accounts} || {
   _accounts_to_restore=$(selectAccountsToBorgRestore)
 
   if [ -z "${_accounts_to_restore}" ]; then

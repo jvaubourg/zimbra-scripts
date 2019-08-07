@@ -503,7 +503,7 @@ while getopts 'm:x:frb:p:u:e:d:h' opt; do
            all_except_accounts)
              _exclude_domains=true
              _exclude_lists=true ;;
-           *) log_err "Value <${OPTARG}> not supported by option -e"; exit_usage 1 ;;
+           *) log_err "Value <${subopt}> not supported by option -e"; exit_usage 1 ;;
          esac
        done ;;
     d) _debug_mode="${OPTARG}" ;;
