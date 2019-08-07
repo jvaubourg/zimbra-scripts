@@ -143,15 +143,15 @@ WIP - Not ready to use
     
       -c path
         Main folder dedicated to this script
-        [Default] <zimbra_main_path>_borgackup (see -p)
+        [Default] <zimbra_main_path>_borgbackup (see -p)
     
         Subfolders will be:
           tmp/: Temporary backups before sending data to Borg
           configs/: See BACKUP CONFIG FILES
     
       -p path
-        Where to save the backups
-        [Default] /tmp/zimbra_backups
+        Main path of the Zimbra installation
+        [Default] /opt/zimbra
     
       -u user
         Zimbra UNIX user
@@ -415,15 +415,15 @@ WIP - Not ready to use
     
       -c path
         Main folder dedicated to this script
-        [Default] 
+        [Default] <zimbra_main_path>_borgbackup (see -p)
     
         Subfolders will be:
           tmp/: Temporary backups before sending data to Borg
           configs/: See BACKUP CONFIG FILES
     
       -p path
-        Where the backups are
-        [Default] 
+        Main path of the Zimbra installation
+        [Default] /opt/zimbra
     
       -u user
         Zimbra UNIX user
