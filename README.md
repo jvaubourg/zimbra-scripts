@@ -110,7 +110,7 @@ WIP - Not ready to use
           Briefcase. Involve them in the issues raised by the cost of the space allocated for the backups!
             zimbra-backup.sh -b /tmp/mybackups/ -s '.*/nobackup'
     
-      (3) Backup everything from the server, but only with the accounts of jdoe@example.com and jfoo@example.org
+      (3) Backup everything from the server, but only with the accounts of jdoe and jfoo
             zimbra-backup.sh -b /tmp/mybackups/ -m jdoe@example.com -m jfoo@example.org
     
       (4) Backup only the stuff related to the account of jdoe@example.com and nothing else
@@ -374,7 +374,7 @@ WIP - Not ready to use
       (1) Restore everything from the backups saved in /tmp/mybackups/
             zimbra-restore.sh -b /tmp/mybackups/
     
-      (2) Restore everything to the server, but only with the accounts of jdoe@example.com and jfoo@example.org
+      (2) Restore everything to the server, but only with the accounts of jdoe and jfoo
             zimbra-restore.sh -b /tmp/mybackups/ -m jdoe@example.com -m jfoo@example.org
     
       (3) Restore only the stuff related to the account of jdoe@example.com and nothing else
