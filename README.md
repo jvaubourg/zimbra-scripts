@@ -2,6 +2,8 @@
 
 WIP - Not ready to use
 
+Clone me into */usr/share/zimbra-scripts/* and do symbolic links for the .sh files to */usr/bin/local/*.
+
 ## Backup
 ### Locally using zimbra-backup.sh
 
