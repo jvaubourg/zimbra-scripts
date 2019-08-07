@@ -300,7 +300,7 @@ _backups_exclude_accounts=
 _backups_exclude_main=false
 _backups_exclude_allaccounts=false
 _accounts_to_backup=
-_backups_options=()
+_backups_options=('')
 
 # Traps
 trap 'trap_exit $LINENO' EXIT TERM ERR

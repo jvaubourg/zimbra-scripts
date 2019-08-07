@@ -319,7 +319,7 @@ _backups_exclude_main=false
 _backups_exclude_allaccounts=false
 _accounts_to_restore=
 _restore_archive_date=
-_restore_options=()
+_restore_options=('')
 
 declare -A _used_borg_mountpoints
 declare -A _used_system_mountpoints
