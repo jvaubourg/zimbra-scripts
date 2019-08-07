@@ -23,13 +23,23 @@ function exit_usage() {
   ACCOUNTS
 
     -m email
-      See zimbra-backup.sh -h
+      Email of an account to include in the backup
+      Repeat this option as many times as necessary to backup more than only one account
+      Cannot be used with -x at the same time
+      [Default] All accounts
+      [Example] -m foo@example.com -m bar@example.org
 
     -x email
-      See zimbra-backup.sh -h
+      Email of an account to exclude of the backup
+      Repeat this option as many times as necessary to backup more than only one account
+      Cannot be used with -m at the same time
+      [Default] No exclusion
+      [Example] -x foo@example.com -x bar@example.org
 
     -l
-      See zimbra-backup.sh -h
+      Lock the accounts just before starting to backup them
+      Locks are NOT removed after the backup: useful when reinstalling the server
+      [Default] Not locked
 
   ENVIRONMENT
 
@@ -42,13 +52,16 @@ function exit_usage() {
         configs/: See BACKUP CONFIG FILES
 
     -p path
-      See zimbra-backup.sh -h
+      Where to save the backups
+      [Default] ${_backups_path}
 
     -u user
-      See zimbra-backup.sh -h
+      Zimbra UNIX user
+      [Default] ${_zimbra_user}
 
     -g group
-      See zimbra-backup.sh -h
+      Zimbra UNIX group
+      [Default] ${_zimbra_group}
 
   EXCLUSIONS
 
@@ -91,10 +104,17 @@ function exit_usage() {
       [Example] mailbackup@mybackups.example.com:myrepos
 
     -s path
-      See zimbra-backup.sh -h
+      Path of a folder to skip when backuping data from accounts
+      (can be a POSIX BRE regex for grep between ^ and $)
+      Repeat this option as many times as necessary to exclude different kind of folders
+      [Default] No exclusion
+      [Example] -s /Briefcase/movies -s '/Inbox/list-.*' -s '.*/nobackup'
 
     -e ASSET
-      See zimbra-backup.sh -h
+      Do a partial backup, by excluding some settings/data
+      Repeat this option as many times as necessary to exclude more than only one asset
+      [Default] Everything is backuped
+      [Example] -e domains -e data
 
       ASSET is restricted to:
         aliases
@@ -124,7 +144,16 @@ function exit_usage() {
   OTHERS
 
     -d LEVEL
-      See zimbra-backup.sh -h
+      Enable debug mode
+      [Default] Disabled
+
+      LEVEL can be:
+        1
+          Show debug messages
+        2
+          Show level 1 information plus Zimbra commands
+        3
+          Show level 2 information plus Bash commands (xtrace)
 
     -h
       Show this help

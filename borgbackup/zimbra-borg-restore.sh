@@ -23,16 +23,25 @@ function exit_usage() {
   ACCOUNTS
 
     -m email
-      See zimbra-restore.sh -h
+      Email of an account to include in the restore
+      Repeat this option as many times as necessary to restore more than only one account
+      Cannot be used with -x at the same time
+      [Default] All accounts
+      [Example] -m foo@example.com -m bar@example.org
 
     -x email
-      See zimbra-restore.sh -h
+      Email of an account to exclude of the restore
+      Repeat this option as many times as necessary to restore more than only one account
+      Cannot be used with -m at the same time
+      [Default] No exclusion
+      [Example] -x foo@example.com -x bar@example.org
 
     -f
-      See zimbra-restore.sh -h
+      Force users to change their password next time they connect after the restore
 
     -r
-      See zimbra-restore.sh -h
+      Reset passwords of the restored accounts
+      Automatically implies -f option
 
   ENVIRONMENT
 
@@ -50,13 +59,16 @@ function exit_usage() {
         configs/: See BACKUP CONFIG FILES
 
     -p path
-      See zimbra-restore.sh -h
+      Where the backups are
+      [Default] ${_backups_path}
 
     -u user
-      See zimbra-restore.sh -h
+      Zimbra UNIX user
+      [Default] ${_zimbra_user}
 
     -g group
-      See zimbra-restore.sh -h
+      Zimbra UNIX group
+      [Default] ${_zimbra_group}
 
   EXCLUSIONS
 
@@ -95,7 +107,16 @@ function exit_usage() {
   OTHERS
 
     -d LEVEL
-      See zimbra-restore.sh -h
+      Enable debug mode
+      [Default] Disabled
+
+      LEVEL can be:
+        1
+          Show debug messages
+        2
+          Show level 1 information plus Zimbra commands
+        3
+          Show level 2 information plus Bash commands (xtrace)
 
     -h
       Show this help

@@ -119,10 +119,16 @@ function exit_usage() {
     (1) Backup everything in /tmp/mybackups/
           zimbra-backup.sh -b /tmp/mybackups/
 
-    (2) Backup everything from the server, but only with the accounts of jdoe@example.com and jfoo@example.org
+    (2) When backuping the mailboxes, the data inside every folder named "nobackup" will be ignored.
+        Ask to your users to create an IMAP folder named "nobackup" and to put inside all their
+        non-important emails (even in subfolders). Ask for the same thing but with their files in the
+        Briefcase. Involve them in the issues raised by the cost of the space allocated for the backups!
+          zimbra-backup.sh -b /tmp/mybackups/ -s '.*/nobackup'
+
+    (3) Backup everything from the server, but only with the accounts of jdoe@example.com and jfoo@example.org
           zimbra-backup.sh -b /tmp/mybackups/ -m jdoe@example.com -m jfoo@example.org
 
-    (3) Backup only the stuff related to the account of jdoe@example.com and nothing else
+    (4) Backup only the stuff related to the account of jdoe@example.com and nothing else
           zimbra-backup.sh -b /tmp/mybackups/ -e all_except_accounts -m jdoe@example.com
 
 USAGE
