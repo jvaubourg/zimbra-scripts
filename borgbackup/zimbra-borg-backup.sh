@@ -64,13 +64,13 @@ function exit_usage() {
 
   MAIN BORG REPOSITORY
 
-    [Mandatory] -a borg_repo
+    -a borg_repo
       Full Borg+SSH repository address for server-related data (ie. for everything except accounts)
       Passphrases of the repositories created for backuping the accounts will be saved in this repo
       [Example] mailbackup@mybackups.example.com:main
       [Example] mailbackup@mybackups.example.com:myrepos/main
 
-    [Mandatory] -z passphrase
+    -z passphrase
       Passphrase of the Borg repository (see -a)
 
     -t port
@@ -85,7 +85,7 @@ function exit_usage() {
   DEFAULT BACKUP OPTIONS
     These options will be used as default when creating a new backup config file (along with -t and -k)
 
-    [Mandatory] -r borg_repo
+    -r borg_repo
       Full Borg+SSH address where to create new repositories for the accounts
       [Example] mailbackup@mybackups.example.com:
       [Example] mailbackup@mybackups.example.com:myrepos
@@ -127,6 +127,35 @@ function exit_usage() {
 
     -h
       Show this help
+
+  EXAMPLES
+
+    (1) Backup everything to mailbackup@mybackups.example.com (using sshkey.priv and port 2222).
+        Server-related data will be backuped in the (already existing) :main Borg repo
+        (using the -z passphrase) and the users' repos will be created in :users/
+        (when no backup config file already exists for them in /opt/zimbra_borgackup/configs/)
+
+        zimbra-borg-backup.sh\
+          -a mailbackup@mybackups.example.com:main\
+          -z 'JRX2jVkRDpH6+OQ9hw/7sWn4F0OBps42I2TQ6DvRIgI='\
+          -k /root/borg/sshkey.priv\
+          -t 2222\
+          -r mailbackup@mybackups.example.com:users/
+
+    (2) Backup only the account jdoe@example.com but not the server-related data.
+        If there is a backup config file named jdoe@example.com already existing,
+        the Borg server described in it will be used. Otherwise, it will be backuped
+        on mybackups.example.com (using sshkey.priv and port 2222) in users/<hash>,
+        and a backup config file will be created in /opt/zimbra_borgackup/configs/
+
+        zimbra-borg-backup.sh\
+          -a mailbackup@mybackups.example.com:main\
+          -z 'JRX2jVkRDpH6+OQ9hw/7sWn4F0OBps42I2TQ6DvRIgI='\
+          -k /root/borg/sshkey.priv\
+          -t 2222\
+          -r mailbackup@mybackups.example.com:users/\
+          -E server\
+          -m jdoe@example.com
 
 USAGE
 

@@ -72,12 +72,12 @@ function exit_usage() {
 
   MAIN BORG REPOSITORY
 
-    [Mandatory] -a borg_repo
+    -a borg_repo
       Full Borg+SSH repository address for the main files
       [Example] mailbackup@mybackups.example.com:main
       [Example] mailbackup@mybackups.example.com:myrepos/main
 
-    [Mandatory] -z passphrase
+    -z passphrase
       Passphrase of the Borg repository (see -a)
 
     -t port
@@ -99,6 +99,30 @@ function exit_usage() {
 
     -h
       Show this help
+
+  EXAMPLES
+
+    (1) Restore everything from mailbackup@mybackups.example.com (using sshkey.priv and port 2222).
+        Server-related data will be restored first (using the :main Borg repo with the -z passphrase),
+        then the accounts will be restored one by one, using the backup config files available in the
+        :main repo. Last archive of every Borg repo is used
+
+        zimbra-borg-restore.sh\
+          -a borg@testrestore.choca.pics:main\
+          -z 'JRX2jVkRDpH6+OQ9hw/7sWn4F0OBps42I2TQ6DvRIgI='\
+          -k /root/borg/sshkey.priv\
+          -t 2222
+
+    (2) Restore only the account jdoe@example.com (who is not existing anymore in Zimbra) but
+        not the server-related data
+
+        zimbra-borg-restore.sh\
+          -a borg@testrestore.choca.pics:main\
+          -z 'JRX2jVkRDpH6+OQ9hw/7sWn4F0OBps42I2TQ6DvRIgI='\
+          -k /root/borg/sshkey.priv\
+          -t 2222\
+          -E server\
+          -m jdoe@example.com
 
 USAGE
 

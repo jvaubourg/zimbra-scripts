@@ -101,6 +101,18 @@ function exit_usage() {
     -h
       Show this help
 
+  EXAMPLES
+
+    (1) Restore everything from the backups saved in /tmp/mybackups/
+          zimbra-restore.sh -b /tmp/mybackups/
+
+    (2) Restore everything to the server, but only with the accounts of jdoe@example.com and jfoo@example.org
+          zimbra-restore.sh -b /tmp/mybackups/ -m jdoe@example.com -m jfoo@example.org
+
+    (3) Restore only the stuff related to the account of jdoe@example.com and nothing else
+        (the domain example.com has to already exist, but not the account jdoe@example.com)
+          zimbra-restore.sh -b /tmp/mybackups/ -e all_except_accounts -m jdoe@example.com
+
 USAGE
 
   # Show help with -h

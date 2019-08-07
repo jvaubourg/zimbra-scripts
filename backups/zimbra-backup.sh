@@ -113,6 +113,17 @@ function exit_usage() {
     -h
       Show this help
 
+  EXAMPLES
+
+    (1) Backup everything in /tmp/mybackups/
+          zimbra-backup.sh -b /tmp/mybackups/
+
+    (2) Backup everything from the server, but only with the accounts of jdoe@example.com and jfoo@example.org
+          zimbra-backup.sh -b /tmp/mybackups/ -m jdoe@example.com -m jfoo@example.org
+
+    (3) Backup only the stuff related to the account of jdoe@example.com and nothing else
+          zimbra-backup.sh -b /tmp/mybackups/ -e all_except_accounts -m jdoe@example.com
+
 USAGE
 
   # Show help with -h
