@@ -69,8 +69,6 @@ function exit_usage() {
           Do not restore server-related data (ie. domains, lists, etc), just accounts
         accounts
           Do not restore any account, just server-related data
-        all_except_data
-          Only restore the contents of the mailboxes, not the accounts neither the server-related data
 
   MAIN BORG REPOSITORY
 
@@ -291,7 +289,7 @@ function borgRestoreAccount() {
 
   log_info "${email}: Restoring using zimbra-restore.sh"
   _restore_options+=(-d "${_debug_mode}")
-  _restore_options+=(-e "${_restore_exclusion_asset}")
+  _restore_options+=(-e all_except_accounts)
   _restore_options+=(-b "${_borg_local_folder_tmp}")
   _restore_options+=(-m "${email}")
   zimbra-restore.sh "${_restore_options[@]}"
@@ -328,7 +326,6 @@ _backups_exclude_accounts=
 _exclude_main=false
 _exclude_accounts=false
 _accounts_to_restore=
-_restore_exclusion_asset=all_except_accounts
 _restore_archive_date=
 _restore_options=()
 
@@ -360,9 +357,8 @@ while getopts 'm:x:fri:c:p:u:g:E:a:z:t:k:d:h' opt; do
          accounts) _exclude_accounts=true ;;
          all_except_data)
            _exclude_main=true
-           _exclude_accounts=false
-           _restore_exclusion_asset=all_except_data ;;
-         *) log_err "Value <${OPTARG}> not supported by option -E"; exit_usage 1 ;;
+           _exclude_accounts=false ;;
+         *) log_err "Value <${OPTARG}> not supported by option -E"; exit 1 ;;
        esac ;;
     a) _borg_repo_main="${OPTARG%/}" ;;
     z) _borg_repo_main_passphrase="${OPTARG%/}" ;;

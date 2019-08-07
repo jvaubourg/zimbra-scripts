@@ -500,7 +500,7 @@ while getopts 'm:x:s:lb:p:u:g:e:d:h' opt; do
              _exclude_aliases=true
              _exclude_signatures=true
              _exclude_filters=true ;;
-           *) log_err "Value <${subopt}> not supported by option -e"; exit_usage 1 ;;
+           *) log_err "Value <${subopt}> not supported by option -e"; exit 1 ;;
          esac
        done ;;
     d) _debug_mode="${OPTARG}" ;;

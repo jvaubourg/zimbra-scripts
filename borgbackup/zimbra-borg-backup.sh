@@ -330,7 +330,7 @@ while getopts 'm:x:lc:p:u:g:E:a:z:t:k:r:s:e:d:h' opt; do
     E) case "${OPTARG}" in
          server) _exclude_main=true ;;
          accounts) _exclude_accounts=true ;;
-         *) log_err "Value <${OPTARG}> not supported by option -E"; exit_usage 1 ;;
+         *) log_err "Value <${OPTARG}> not supported by option -E"; exit 1 ;;
        esac ;;
     a) _borg_repo_main="${OPTARG%/}" ;;
     z) _borg_repo_main_passphrase="${OPTARG%/}" ;;
@@ -341,7 +341,7 @@ while getopts 'm:x:lc:p:u:g:E:a:z:t:k:r:s:e:d:h' opt; do
     e) for subopt in ${OPTARG}; do
          case "${subopt}" in
            aliases|signatures|filters|data) _backups_options+=(-e "${OPTARG}") ;;
-           *) log_err "Value <${subopt}> not supported by option -e"; exit_usage 1 ;;
+           *) log_err "Value <${subopt}> not supported by option -e"; exit 1 ;;
          esac
        done ;;
     d) _debug_mode="${OPTARG}" ;;
