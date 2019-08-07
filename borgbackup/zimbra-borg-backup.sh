@@ -35,6 +35,10 @@ function exit_usage() {
       Do not backup server-related data (ie. domains, lists, etc), just accounts
       [Default] Server-related data are backuped
 
+    -o
+      Do not backup any account, just server-related data
+      [Default] Accounts are backuped, depending on the -m or -x option (or neither or them)
+
   ENVIRONMENT
 
     -c path
@@ -294,6 +298,7 @@ _borg_repo_ssh_port=22
 _backups_include_accounts=
 _backups_exclude_accounts=
 _backups_exclude_main=false
+_backups_exclude_allaccounts=false
 _accounts_to_backup=
 _backups_options=()
 
@@ -306,12 +311,13 @@ trap 'exit 1' INT
 ### OPTIONS ###
 ###############
 
-while getopts 'm:x:lnc:p:u:g:a:z:t:k:r:s:e:d:h' opt; do
+while getopts 'm:x:lnoc:p:u:g:a:z:t:k:r:s:e:d:h' opt; do
   case "${opt}" in
     m) _backups_include_accounts=$(echo -En ${_backups_include_accounts} ${OPTARG}) ;;
     x) _backups_exclude_accounts=$(echo -En ${_backups_exclude_accounts} ${OPTARG}) ;;
     l) _backups_options+=(-l) ;;
     n) _backups_exclude_main=true ;;
+    o) _backups_exclude_allaccounts=true ;;
     c) _borg_local_folder_main="${OPTARG%/}" ;;
     p) _zimbra_main_path="${OPTARG%/}" ;;
     u) _zimbra_user="${OPTARG}" ;;
@@ -368,9 +374,19 @@ if [ -n "${_backups_include_accounts}" -a -n "${_backups_exclude_accounts}" ]; t
   exit 1
 fi
 
+if ${_backups_exclude_allaccounts} && [ -n "${_backups_include_accounts}" ]; then
+  log_err "Options -n and -m are not compatible"
+  exit 1
+fi
+
 if [ ! -d "${_zimbra_main_path}" -o ! -x "${_zimbra_main_path}" ]; then
   log_err "Zimbra path <${_zimbra_main_path}> doesn't exist, is not a directory or is not executable"
   exit 1
+fi
+
+if ${_backups_exclude_main} && ${_backups_exclude_allaccounts}; then
+  log_err "Options -n and -o set: nothing to do"
+  exit 0
 fi
 
 
@@ -385,32 +401,34 @@ install -b -m 0700 -o "${_zimbra_user}" -g "${_zimbra_group}" -d "${_borg_local_
 log_debug "Renew the TMP folder"
 emptyTmpFolder
 
-if [ -z "${_backups_include_accounts}" ]; then
-  log_info "Preparing for accounts backuping"
-fi
-
-_accounts_to_backup=$(selectAccountsToBackup "${_backups_include_accounts}" "${_backups_exclude_accounts}")
-
 ${_backups_exclude_main} || {
   log_info "Backuping server-related data"
   borgBackupMain
 }
 
-if [ -z "${_accounts_to_backup}" ]; then
-  log_debug "No account to backup"
-else
-  log_debug "Accounts to backup: ${_accounts_to_backup}"
+${_backups_exclude_allaccounts} || {
+  if [ -z "${_backups_include_accounts}" ]; then
+    log_info "Preparing for accounts backuping"
+  fi
 
-  resetAccountProcessDuration
+  _accounts_to_backup=$(selectAccountsToBackup "${_backups_include_accounts}" "${_backups_exclude_accounts}")
 
-  # Backup accounts
-  for email in ${_accounts_to_backup}; do
-    log_info "Backuping account <${email}>"
-    borgBackupAccount "${email}"
-  done
+  if [ -z "${_accounts_to_backup}" ]; then
+    log_debug "No account to backup"
+  else
+    log_debug "Accounts to backup: ${_accounts_to_backup}"
 
-  showAccountProcessDuration
-fi
+    resetAccountProcessDuration
+
+    # Backup accounts
+    for email in ${_accounts_to_backup}; do
+      log_info "Backuping account <${email}>"
+      borgBackupAccount "${email}"
+    done
+
+    showAccountProcessDuration
+  fi
+}
 
 showFullProcessDuration
 

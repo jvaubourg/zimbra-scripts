@@ -38,6 +38,10 @@ function exit_usage() {
       Do not restore server-related data (ie. domains, lists, etc), just accounts
       [Default] Server-related data are restored
 
+    -o
+      Do not backup any account, just server-related data
+      [Default] Accounts are backuped, depending on the -m or -x option (or neither or them)
+
   ENVIRONMENT
 
     -i date
@@ -308,6 +312,7 @@ _backups_path=
 _backups_include_accounts=
 _backups_exclude_accounts=
 _backups_exclude_main=false
+_backups_exclude_allaccounts=false
 _accounts_to_restore=
 _restore_archive_date=
 _restore_options=()
@@ -324,13 +329,14 @@ trap 'exit 1' INT
 ### OPTIONS ###
 ###############
 
-while getopts 'm:x:frni:c:p:u:g:a:z:t:k:d:h' opt; do
+while getopts 'm:x:frnoi:c:p:u:g:a:z:t:k:d:h' opt; do
   case "${opt}" in
     m) _backups_include_accounts=$(echo -En ${_backups_include_accounts} ${OPTARG}) ;;
     x) _backups_exclude_accounts=$(echo -En ${_backups_exclude_accounts} ${OPTARG}) ;;
     f) _restore_options+=(-f) ;;
     r) _restore_options+=(-r) ;;
     n) _backups_exclude_main=true ;;
+    o) _backups_exclude_allaccounts=true ;;
     i) _restore_archive_date="${OPTARG}" ;;
     c) _borg_local_folder_main="${OPTARG%/}" ;;
     p) _zimbra_main_path="${OPTARG%/}" ;;
@@ -381,9 +387,19 @@ if [ -n "${_backups_include_accounts}" -a -n "${_backups_exclude_accounts}" ]; t
   exit 1
 fi
 
+if ${_backups_exclude_allaccounts} && [ -n "${_backups_include_accounts}" ]; then
+  log_err "Options -n and -m are not compatible"
+  exit 1
+fi
+
 if [ ! -d "${_zimbra_main_path}" -o ! -x "${_zimbra_main_path}" ]; then
   log_err "Zimbra path <${_zimbra_main_path}> doesn't exist, is not a directory or is not executable"
   exit 1
+fi
+
+if ${_backups_exclude_main} && ${_backups_exclude_allaccounts}; then
+  log_err "Options -n and -o set: nothing to do"
+  exit 0
 fi
 
 
@@ -406,27 +422,29 @@ ${_backups_exclude_main} || {
   restoreMain
 }
 
-_accounts_to_restore=$(selectAccountsToBorgRestore)
+${_backups_exclude_allaccounts} || {
+  _accounts_to_restore=$(selectAccountsToBorgRestore)
 
-if [ -z "${_accounts_to_restore}" ]; then
-  log_debug "No account to restore"
-else
-  log_debug "Accounts to restore: ${_accounts_to_restore}"
+  if [ -z "${_accounts_to_restore}" ]; then
+    log_debug "No account to restore"
+  else
+    log_debug "Accounts to restore: ${_accounts_to_restore}"
 
-  # Mount & Restore account backups
-  for email in ${_accounts_to_restore}; do
-    log_info "Restoring account <${email}>"
+    # Mount & Restore account backups
+    for email in ${_accounts_to_restore}; do
+      log_info "Restoring account <${email}>"
 
-    if [ ! -f "${_borg_local_folder_configs}/${email}" ]; then
-      log_err "${email}: No backup config file found for this account"
-      log_err "${email}: Will *NOT* be restored"
-    else
-      resetAccountProcessDuration
-      borgRestoreAccount "${email}"
-      showAccountProcessDuration
-    fi
-  done
-fi
+      if [ ! -f "${_borg_local_folder_configs}/${email}" ]; then
+        log_err "${email}: No backup config file found for this account"
+        log_err "${email}: Will *NOT* be restored"
+      else
+        resetAccountProcessDuration
+        borgRestoreAccount "${email}"
+        showAccountProcessDuration
+      fi
+    done
+  fi
+}
 
 showFullProcessDuration
 
