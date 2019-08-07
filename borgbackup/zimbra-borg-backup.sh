@@ -62,7 +62,7 @@ function exit_usage() {
       [Example] mailbackup@mybackups.example.com:main
       [Example] mailbackup@mybackups.example.com:myrepos/main
 
-    [Mandatory] -z passphrase 
+    [Mandatory] -z passphrase
       Passphrase of the Borg repository (see -a)
 
     -t port
@@ -145,7 +145,7 @@ function cleanFailedProcess() {
 # sending data to the server
 function emptyTmpFolder() {
   local ask_remove=y
-  
+
   if [ "${_debug_mode}" -gt 0 ]; then
     read -p "Empty the Borg TMP folder <${_borg_local_folder_tmp}> (default: Y)? " ask_remove
   fi
@@ -391,7 +391,7 @@ fi
 
 _accounts_to_backup=$(selectAccountsToBackup "${_backups_include_accounts}" "${_backups_exclude_accounts}")
 
-${_backups_exclude_main} || {
+${_backups_exclude_main} || {
   log_info "Backuping server-related data"
   borgBackupMain
 }
