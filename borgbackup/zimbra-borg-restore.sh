@@ -222,7 +222,7 @@ function selectAccountsToBorgRestore() {
   umount "${mount_folder}"
   unset _used_system_mountpoints["${mount_folder}"]
 
-  print '%s' "${accounts_to_restore}"
+  printf '%s' "${accounts_to_restore}"
 }
 
 function borgRestoreAccount() {
