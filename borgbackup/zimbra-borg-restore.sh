@@ -112,12 +112,12 @@ USAGE
 function cleanFailedProcess() {
   log_debug "Cleaning after fail"
 
-  for mount_folder in "${_used_system_mountpoints}"; do
+  for mount_folder in "${_used_system_mountpoints[@]}"; do
     log_debug "Umounting <${mount_folder}>"
     umount "${mount_folder}"
   done
 
-  for mount_folder in "${_used_borg_mountpoints}"; do
+  for mount_folder in "${_used_borg_mountpoints[@]}"; do
     log_debug "Borg umounting <${mount_folder}>"
     borg umount "${mount_folder}"
   done
@@ -183,13 +183,13 @@ function borgCopyMain() {
   log_info "Archive ${date_archive} is used"
 
   # Copy all files related to the server to the TMP folder, except the folder created by zimbra-borg-backup.sh
-  find "${archive_folder}" -maxdepth 1 \! -name borg -exec cp -a {} "${_borg_local_folder_tmp}" +
+  find "${archive_folder}" -maxdepth 1 \! -name borg -exec cp -a {} "${_borg_local_folder_tmp}" \;
 
   # Create the accounts/ folder which is supposed to be there in a complete backup
   install -b -m 0700 -o "${_zimbra_user}" -g "${_zimbra_group}" -d "${_borg_local_folder_tmp}/accounts"
 
   # Restore backup config files for accounts
-  find "${archive_folder}/borg/configs/" -type f -name '*@*' -exec cp -a {} "${_borg_local_folder_configs}" +
+  find "${archive_folder}/borg/configs/" -type f -name '*@*' -exec cp -a {} "${_borg_local_folder_configs}" \;
 
   # Umount the repository
   borg umount "${mount_folder}"
