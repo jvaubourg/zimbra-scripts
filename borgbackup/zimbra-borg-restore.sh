@@ -108,7 +108,7 @@ USAGE
 ####################
 
 # Called by the main trap if an error occured and the script stops
-# Currently do nothing (Borg cannot really fail in the middle of an archive creation)
+# Umount all directories currently mounted
 function cleanFailedProcess() {
   log_debug "Cleaning after fail"
 
@@ -152,13 +152,13 @@ function borgCopyMain() {
   if [ -z "${date_archive}" ]; then
 
     # Mount the main repository
-    borg mount ${_borg_debug_mode} --last 1 "${_borg_repo_main}" "${mount_folder}" || {
+    borg mount ${_borg_debug_mode} --last 1 "${_borg_repo_main}" "${mount_folder}" > /dev/null || {
       log_err "Unable to mount the main Borg archive (last one)"
       log_err "Unable to have access to the backup config files of the accounts"
       exit 1
     }
 
-    _used_borg_mountpoints["${mount_folder}"]="${mount_folder}"
+    _used_borg_mountpoints+=("${mount_folder}")
 
     # Target the only one archive (--last 1) inside the repository
     archive_folder=$(find "${mount_folder}" -mindepth 1 -maxdepth 1 | head -n 1)
@@ -168,13 +168,13 @@ function borgCopyMain() {
   else
 
     # Mount the main repository
-    borg mount ${_borg_debug_mode} "${_borg_repo_main}::${_restore_archive_date}" "${mount_folder}" || {
+    borg mount ${_borg_debug_mode} "${_borg_repo_main}::${_restore_archive_date}" "${mount_folder}" > /dev/null || {
       log_err "Unable to mount the main Borg archive (${_restore_archive_date})"
       log_err "Unable to have access to the backup config files of the accounts"
       exit 1
     }
 
-    _used_borg_mountpoints["${mount_folder}"]="${mount_folder}"
+    _used_borg_mountpoints+=("${mount_folder}")
     archive_folder="${mount_folder}"
   fi
 
@@ -193,7 +193,7 @@ function borgCopyMain() {
 
   # Umount the repository
   borg umount "${mount_folder}"
-  unset _used_borg_mountpoints["${mount_folder}"]
+  unset _used_borg_mountpoints[-1]
   rmdir "${mount_folder}"
 }
 
@@ -207,12 +207,12 @@ function selectAccountsToBorgRestore() {
   local mount_folder="${_borg_local_folder_tmp}/accounts"
 
   mount -o bind "${_borg_local_folder_configs}" "${mount_folder}"
-  _used_system_mountpoints["${mount_folder}"]="${mount_folder}"
+  _used_system_mountpoints+=("${mount_folder}")
 
   accounts_to_restore=$(selectAccountsToRestore "${_backups_include_accounts}" "${_backups_exclude_accounts}")
 
   umount "${mount_folder}"
-  unset _used_system_mountpoints["${mount_folder}"]
+  unset _used_system_mountpoints[-1]
 
   print '%s' "${accounts_to_restore}"
 }
@@ -239,7 +239,7 @@ function borgRestoreAccount() {
   if [ -z "${date_archive}" ]; then
 
     # Mount the account repository
-    borg mount ${_borg_debug_mode} --last 1 "${borg_repo}" "${mount_folder}" || {
+    borg mount ${_borg_debug_mode} --last 1 "${borg_repo}" "${mount_folder}" > /dev/null || {
       log_err "${email}: Unable to mount the Borg archive (last one)"
       log_err "${email}: Account *NOT* restored"
 
@@ -247,7 +247,7 @@ function borgRestoreAccount() {
       return
     }
 
-    _used_borg_mountpoints["${mount_folder}"]="${mount_folder}"
+    _used_borg_mountpoints+=("${mount_folder}")
 
     # Target the only one archive (--last 1) inside the repository
     archive_folder=$(find "${mount_folder}" -mindepth 1 -maxdepth 1 | head -n 1)
@@ -257,7 +257,7 @@ function borgRestoreAccount() {
   else
 
     # Mount the account repository
-    borg mount ${_borg_debug_mode} --last 1 "${borg_repo}" "${mount_folder}" || {
+    borg mount ${_borg_debug_mode} --last 1 "${borg_repo}" "${mount_folder}" > /dev/null || {
       log_err "${email}: Unable to mount the Borg archive (${date_archive})"
       log_err "${email}: Account *NOT* restored"
 
@@ -265,7 +265,7 @@ function borgRestoreAccount() {
       return
     }
 
-    _used_borg_mountpoints["${mount_folder}"]="${mount_folder}"
+    _used_borg_mountpoints+=("${mount_folder}")
     archive_folder="${mount_folder}"
   fi
 
@@ -273,17 +273,17 @@ function borgRestoreAccount() {
 
   # Mount the archive into the account folder to let zimbra-restore.sh find it
   mount -o bind "${archive_folder}" "${account_folder}"
-  _used_system_mountpoints["${account_folder}"]="${account_folder}"
+  _used_system_mountpoints+=("${account_folder}")
 
   log_info "${email}: Restoring using zimbra-restore.sh"
   zimbra-restore.sh "${_restore_options[@]}" -d "${_debug_mode}" -e all_except_accounts -b "${_borg_local_folder_tmp}" -m "${email}"
 
   # Umount repository and bound account folder
   umount "${account_folder}"
-  unset _used_system_mountpoints["${account_folder}"]
+  unset _used_system_mountpoints[-1]
 
   borg umount "${mount_folder}"
-  unset _used_borg_mountpoints["${mount_folder}"]
+  unset _used_borg_mountpoints[-1]
 
   rmdir "${mount_folder}" "${account_folder}"
 }
@@ -312,8 +312,8 @@ _accounts_to_restore=
 _restore_archive_date=
 _restore_options=()
 
-declare -A _used_borg_mountpoints=()
-declare -A _used_system_mountpoints=()
+_used_borg_mountpoints=()
+_used_system_mountpoints=()
 
 # Traps
 trap 'trap_exit $LINENO' EXIT TERM ERR
