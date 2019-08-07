@@ -103,7 +103,8 @@ function exit_usage() {
         data
 
   BACKUP CONFIG FILES
-    Every account to backup has to be associated to a config file for its backup (see -c for the folder location)
+    Every account to backup has to be associated to a config file for its backup
+    (see -c for the folder location)
     When there is no config file for an account to backup, the file is created with the default
     options (see DEFAULT BACKUP OPTIONS) and a remote "borg init" is executed
 

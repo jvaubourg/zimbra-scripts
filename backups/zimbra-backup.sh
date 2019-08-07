@@ -38,7 +38,8 @@ function exit_usage() {
       [Example] -x foo@example.com -x bar@example.org
 
     -s path
-      Path of a folder to skip when backuping data from accounts (can be a POSIX BRE regex for grep between ^ and $)
+      Path of a folder to skip when backuping data from accounts
+      (can be a POSIX BRE regex for grep between ^ and $)
       Repeat this option as many times as necessary to exclude different kind of folders
       [Default] No exclusion
       [Example] -s /Briefcase/movies -s '/Inbox/list-.*' -s '.*/nobackup'
