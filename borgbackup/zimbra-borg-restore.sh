@@ -426,7 +426,7 @@ install -b -m 0700 -o "${_zimbra_user}" -g "${_zimbra_group}" -d "${_borg_local_
 log_debug "Renew the TMP folder"
 emptyTmpFolder
 
-(${_exclude_main} && ${_exclude_accounts}) || [
+(${_exclude_main} && ${_exclude_accounts}) || {
   log_info "Mounting and copying files from the main repository"
   borgCopyMain
 }
