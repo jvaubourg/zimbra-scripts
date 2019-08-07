@@ -69,7 +69,7 @@ function exit_usage() {
       [Example] mailbackup@mybackups.example.com:main
       [Example] mailbackup@mybackups.example.com:myrepos/main
 
-    [Mandatory] -z passphrase 
+    [Mandatory] -z passphrase
       Passphrase of the Borg repository (see -a)
 
     -t port
@@ -117,7 +117,7 @@ function cleanFailedProcess() {
 # sending data to the server
 function emptyTmpFolder() {
   local ask_remove=y
-  
+
   if [ "${_debug_mode}" -gt 0 ]; then
     read -p "Empty the Borg TMP folder <${_borg_local_folder_tmp}> (default: Y)? " ask_remove
   fi
@@ -137,7 +137,7 @@ function borgCopyMain() {
 
   export BORG_PASSPHRASE="${_borg_repo_main_passphrase}"
   export BORG_RSH="ssh -oBatchMode=yes -i ${_borg_repo_ssh_key} -p ${_borg_repo_ssh_port}"
-  
+
   # The last archive has to be used
   if [ -z "${date_archive}" ]; then
 
@@ -147,7 +147,7 @@ function borgCopyMain() {
       log_err "Unable to have access to the backup config files of the accounts"
       exit 1
     }
-  
+
     # Target the only one archive (--last 1) inside the repository
     archive_folder=$(find "${mount_folder}" -mindepth 1 -maxdepth 1 | head -n 1)
     date_archive=$(basename "${archive_folder}")
@@ -161,7 +161,7 @@ function borgCopyMain() {
       log_err "Unable to have access to the backup config files of the accounts"
       exit 1
     }
-  
+
     archive_folder="${mount_folder}"
   fi
 
@@ -215,12 +215,12 @@ function borgRestoreAccount() {
 
   export BORG_PASSPHRASE="${passphrase}"
   export BORG_RSH="ssh -oBatchMode=yes -i ${_borg_repo_ssh_key} -p ${ssh_port}"
-  
+
   # The last archive has to be used
   if [ -z "${date_archive}" ]; then
 
     # Mount the account repository
-    borg mount ${_borg_debug_mode} --last 1 "${borg_repo}" "${mount_folder}" || {
+    borg mount ${_borg_debug_mode} --last 1 "${borg_repo}" "${mount_folder}" || {
       log_err "${email}: Unable to mount the Borg archive (last one)"
       log_err "${email}: Account *NOT* restored"
 
@@ -236,7 +236,7 @@ function borgRestoreAccount() {
   else
 
     # Mount the account repository
-    borg mount ${_borg_debug_mode} --last 1 "${borg_repo}" "${mount_folder}" || {
+    borg mount ${_borg_debug_mode} --last 1 "${borg_repo}" "${mount_folder}" || {
       log_err "${email}: Unable to mount the Borg archive (${date_archive})"
       log_err "${email}: Account *NOT* restored"
 
