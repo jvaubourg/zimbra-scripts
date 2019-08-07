@@ -312,8 +312,8 @@ _accounts_to_restore=
 _restore_archive_date=
 _restore_options=()
 
-declare -A _used_borg_mountpoints
-declare -A _used_system_mountpoints
+declare -A _used_borg_mountpoints=()
+declare -A _used_system_mountpoints=()
 
 # Traps
 trap 'trap_exit $LINENO' EXIT TERM ERR
