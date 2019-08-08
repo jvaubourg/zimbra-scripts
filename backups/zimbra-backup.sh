@@ -297,10 +297,19 @@ function zimbraBackupLists() {
   install -o "${_zimbra_user}" -g "${_zimbra_group}" -d "${backup_path}"
 
   for list_email in $(zimbraGetLists); do
-    local backup_file="${backup_path}/${list_email}"
+    if [ ! -d "${backup_path}/${list_email}" ]; then
+      mkdir -p "${backup_path}/${list_email}"
+    fi
+
+    local backup_file="${backup_path}/${list_email}/members"
 
     log_debug "Backup members of ${list_email}"
     zimbraGetListMembers "${list_email}" | (grep -F @ | grep -v '^#' || true) > "${backup_file}"
+
+    local backup_file="${backup_path}/${list_email}/aliases"
+
+    log_debug "Backup aliases of ${list_email}"
+    zimbraGetListAliases "${list_email}" | (grep -F @ | grep -v '^#' || true) > "${backup_file}"
   done
 }
 
@@ -391,7 +400,7 @@ function zimbraBackupAccountSignatures() {
       # Save the name of the signature in the first line
       # Rename the file to indicate if the signature is html or plain text
       local backup_file="${tmp_backup_file}.${extension}"
-      printf '%s' "${name}" > "${backup_file}"
+      printf '%s\n' "${name}" > "${backup_file}"
 
       # Remove every line corresponding to a Zimbra field and not the signature content itself
       (grep -iv '^zimbra[a-z]\+: ' "${tmp_backup_file}" || true) >> "${backup_file}"

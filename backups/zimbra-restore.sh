@@ -169,7 +169,7 @@ function extractFromAccountSettingsFile() {
   local email="${1}"
   local field="${2}"
   local backup_file="${_backups_path}/accounts/${email}/settings"
-  local value=$((grep "^${field}:" "${backup_file}" || true) | sed "s/^${field}: //")
+  local value=$( (sed -n -e '/^'$field':/,/^[a-zA-Z0-9]*:/ p' ${backup_file} || true) | sed '$ d' | sed -e 's/^'$field': //g')
 
   printf '%s' "${value}"
 }
@@ -237,20 +237,42 @@ function zimbraRestoreLists() {
   local lists=$(ls "${backup_path}")
 
   for list_email in ${lists}; do
-    local backup_file="${backup_path}/${list_email}"
+    local backup_list_path="${backup_path}/${list_email}"
 
-    if [ ! -f "${backup_file}" -o ! -r "${backup_file}" ]; then
-      log_err "File <${backup_file}> is not a regular file or is not readable"
+    if [ ! -d "${backup_list_path}" -o ! -x "${backup_list_path}" -o ! -r "${backup_list_path}" ]; then
+      log_err "Directory <$backup_list_path> is not a directory or is not readable"
+      exit 1
+    fi
+
+    local backup_file_members="${backup_list_path}/members"
+
+    if [ ! -f "${backup_file_members}" -o ! -r "${backup_file_members}" ]; then
+      log_err "File <${backup_file_members}> is not a regular file or is not readable"
+      exit 1
+    fi
+
+    local backup_file_aliases="${backup_list_path}/aliases"
+
+    if [ ! -f "${backup_file_aliases}" -o ! -r "${backup_file_aliases}" ]; then
+      log_err "File <${backup_file_aliases}> is not a regular file or is not readable"
       exit 1
     fi
 
     log_debug "Creating mailing list <${list_email}>"
     zimbraCreateList "${list_email}"
 
+    log_debug "Importing mailing list <${list_email}> members"
     while read member_email; do
       log_debug "${list_email}: Add <${member_email}> as a member"
       zimbraSetListMember "${list_email}" "${member_email}"
-    done < "${backup_file}"
+    done < "${backup_file_members}"
+
+    log_debug "Importing mailing list <${list_email}> aliases"
+    while read alias_email; do
+      log_debug "${list_email}: Add <${alias_email}> as an alias"
+      zimbraSetListAlias "${list_email}" "${alias_email}"
+    done < "${backup_file_aliases}"
+
   done
 }
 
@@ -422,6 +444,35 @@ function zimbraRestoreAccountFilters() {
   fi
 
   zimbraSetAccountFilters "${email}" "${backup_file}"
+}
+
+# Restore Out Of Office settings for the account
+function zimbraRestoreAccountOOO() {
+  local ooo_settings="zimbraFeatureOutOfOfficeReplyEnabled
+                      zimbraPrefOutOfOfficeCacheDuration
+                      zimbraPrefOutOfOfficeExternalReply
+                      zimbraPrefOutOfOfficeExternalReplyEnabled
+                      zimbraPrefOutOfOfficeFromDate
+                      zimbraPrefOutOfOfficeReply
+                      zimbraPrefOutOfOfficeReplyEnabled
+                      zimbraPrefOutOfOfficeStatusAlertOnLogin
+                      zimbraPrefOutOfOfficeUntilDate"
+
+  local email="${1}"
+  local backup_path="${_backups_path}/accounts/${email}"
+  local backup_file="${backup_path}/settings"
+
+  if [ ! -f "${backup_file}" -o ! -r "${backup_file}" ]; then
+    log_err "${email}: File <${backup_file}> is missing, is not a regular file or is not readable"
+    log_err "${email}: Account Out Of Office settings will *NOT* be restored"
+    return
+  fi
+
+  for field in $ooo_settings; do
+     local value=$(extractFromAccountSettingsFile $email $field)
+     zimbraSetAccount "${email}" "${field}" "${value}"
+  done
+
 }
 
 # Restore all the data for the account, with folders/mails/tasks/calendar/etc
@@ -633,6 +684,9 @@ ${_exclude_accounts} || {
 
           log_debug "${email}: Restore Forwarding setting"
           zimbraRestoreAccountForwarding "${email}"
+
+          log_debug "${email}: Restore OutOfOffice settings"
+          zimbraRestoreAccountOOO "${email}"
         }
 
         ${_exclude_data} || {
