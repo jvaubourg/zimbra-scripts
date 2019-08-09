@@ -233,7 +233,7 @@ function zimbraGetListAliases() {
   local list_email="${1}"
   local cmd=(zmprov --ldap getDistributionList "${list_email}")
 
-  execZimbraCmd cmd | awk ' /^zimbraMailAlias:/ { print $2 } '
+  execZimbraCmd cmd | awk '/^zimbraMailAlias:/ { print $2 }'
 }
 
 function zimbraGetAccounts() {
@@ -451,15 +451,15 @@ function zimbraSetAccountForwarding() {
 
 function zimbraSetAccountOutOfOffice() {
   local email="${1}"
-  local replyEnabled=${2}
-  local cacheDuration=${3}
-  local externalReply=${4}
-  local externalReplyEnabled=${5}
-  local fromDate=${6}
-  local reply=${7}
-  local replyEnabled=${8}
-  local statusAlertOnLogin=${9}
-  local untilDate=${10}
+  local replyEnabled="${2}"
+  local cacheDuration="${3}"
+  local externalReply="${4}"
+  local externalReplyEnabled="${5}"
+  local fromDate="${6}"
+  local reply="${7}"
+  local replyEnabled="${8}"
+  local statusAlertOnLogin="${9}"
+  local untilDate="${10}"
   local cmd=
 
   cmd=(zmprov modifyAccount "${email}" zimbraFeatureOutOfOfficeReplyEnabled "${replyEnabled}")

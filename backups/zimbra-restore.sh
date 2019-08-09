@@ -207,48 +207,47 @@ function zimbraRestoreDomainsDkim() {
   done
 }
 
-# Create mailing lists registred in the backup, and associate all their members
+# Create mailing lists registred in the backup, create the aliases, and add all the members
 function zimbraRestoreLists() {
   local backup_path="${_backups_path}/lists"
   local lists=$(ls "${backup_path}")
 
   for list_email in ${lists}; do
-    local backup_list_path="${backup_path}/${list_email}"
+    local backup_path_list="${backup_path}/${list_email}"
+    local backup_file_members="${backup_path_list}/members"
+    local backup_file_aliases="${backup_path_list}/aliases"
 
-    if [ ! -d "${backup_list_path}" -o ! -x "${backup_list_path}" -o ! -r "${backup_list_path}" ]; then
-      log_err "Directory <$backup_list_path> is not a directory or is not readable"
+    if [ ! -d "${backup_path_list}" -o ! -x "${backup_path_list}" -o ! -r "${backup_path_list}" ]; then
+      log_err "Directory <$backup_path_list> is not a directory or is not readable"
       exit 1
     fi
-
-    local backup_file_members="${backup_list_path}/members"
 
     if [ ! -f "${backup_file_members}" -o ! -r "${backup_file_members}" ]; then
       log_err "File <${backup_file_members}> is not a regular file or is not readable"
       exit 1
     fi
 
-    local backup_file_aliases="${backup_list_path}/aliases"
-
     if [ ! -f "${backup_file_aliases}" -o ! -r "${backup_file_aliases}" ]; then
       log_err "File <${backup_file_aliases}> is not a regular file or is not readable"
       exit 1
     fi
 
-    log_debug "Creating mailing list <${list_email}>"
+    log_debug "Create mailing list <${list_email}>"
     zimbraCreateList "${list_email}"
 
-    log_debug "Importing mailing list <${list_email}> members"
-    while read member_email; do
-      log_debug "${list_email}: Add <${member_email}> as a member"
-      zimbraSetListMember "${list_email}" "${member_email}"
-    done < "${backup_file_members}"
+    log_debug "${list_email}: Restore aliases"
 
-    log_debug "Importing mailing list <${list_email}> aliases"
     while read alias_email; do
-      log_debug "${list_email}: Add <${alias_email}> as an alias"
+      log_debug "${list_email}: Add <${alias_email}> as a list alias"
       zimbraSetListAlias "${list_email}" "${alias_email}"
     done < "${backup_file_aliases}"
 
+    log_debug "${list_email}: Restore members"
+
+    while read member_email; do
+      log_debug "${list_email}: Add <${member_email}> as a list member"
+      zimbraSetListMember "${list_email}" "${member_email}"
+    done < "${backup_file_members}"
   done
 }
 

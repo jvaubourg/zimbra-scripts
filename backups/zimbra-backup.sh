@@ -292,23 +292,18 @@ function zimbraBackupDomainsDkim() {
 
 # Save all existing mailing lists with a list of their members
 function zimbraBackupLists() {
-  local backup_path="${_backups_path}/lists"
-
-  install -o "${_zimbra_user}" -g "${_zimbra_group}" -d "${backup_path}"
-
   for list_email in $(zimbraGetLists); do
-    if [ ! -d "${backup_path}/${list_email}" ]; then
-      mkdir -p "${backup_path}/${list_email}"
-    fi
+    local backup_path="${_backups_path}/lists/${list_email}"
+    local backup_file=
 
-    local backup_file="${backup_path}/${list_email}/members"
+    install -o "${_zimbra_user}" -g "${_zimbra_group}" -d "${backup_path}"
 
     log_debug "Backup members of ${list_email}"
+    backup_file="${backup_path}/members"
     zimbraGetListMembers "${list_email}" | (grep -F @ | grep -v '^#' || true) > "${backup_file}"
 
-    local backup_file="${backup_path}/${list_email}/aliases"
-
     log_debug "Backup aliases of ${list_email}"
+    backup_file="${backup_path}/aliases"
     zimbraGetListAliases "${list_email}" | (grep -F @ | grep -v '^#' || true) > "${backup_file}"
   done
 }
