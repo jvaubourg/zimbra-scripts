@@ -478,7 +478,7 @@ function backupInfo() {
   zimbraGetVersion > "${backup_path}/zimbra_version"
   cp /etc/redhat-release "${backup_path}/centos_version"
 
-  backup_path="${backups_path}/scripts"
+  backup_path="${backup_path}/scripts"
   install -o "${_zimbra_user}" -g "${_zimbra_group}" -d "${backup_path}"
   install -o "${_zimbra_user}" -g "${_zimbra_group}" /usr/share/zimbra-scripts/backups/zimbra-backup.sh "${backup_path}"
   install -o "${_zimbra_user}" -g "${_zimbra_group}" /usr/share/zimbra-scripts/backups/zimbra-restore.sh "${backup_path}"
