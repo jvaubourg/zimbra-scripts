@@ -474,7 +474,7 @@ function backupInfo() {
   install -o "${_zimbra_user}" -g "${_zimbra_group}" -d "${backup_path}"
 
   date > "${backup_path}/date"
-  printf '%s %s' "${0}" "${@}" > "${backup_path}/command_line"
+  printf '%s %s\n' "${0}" "${@@Q}" > "${backup_path}/command_line"
   zimbraGetVersion > "${backup_path}/zimbra_version"
   cp /etc/redhat-release "${backup_path}/centos_version"
 
