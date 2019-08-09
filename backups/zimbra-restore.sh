@@ -150,30 +150,6 @@ function cleanFailedProcess() {
   fi
 }
 
-# Check if the settings file of the account backup is ready to be used
-# Useful for backups to check if zimbraBackupAccountSettings has been already
-# called to create the file
-function checkAccountSettingsFile() {
-  local email="${1}"
-  local backup_file="${_backups_path}/accounts/${email}/settings"
-
-  if [ ! -f "${backup_file}" -o ! -r "${backup_file}" ]; then
-    log_err "File <${backup_file}> is missing, is not a regular file or is not readable"
-    exit 1
-  fi
-}
-
-# Extract the value of a setting from the settings file available in the backup
-# Should be secured with a call to checkAccountSettingsFile before using it
-function extractFromAccountSettingsFile() {
-  local email="${1}"
-  local field="${2}"
-  local backup_file="${_backups_path}/accounts/${email}/settings"
-  local value=$((grep "^${field}:" "${backup_file}" || true) | sed "s/^${field}: //")
-
-  printf '%s' "${value}"
-}
-
 # Return the size in human-readable bytes of a data.tar file
 function getAccountDataFileSize() {
   local email="${1}"
@@ -231,26 +207,47 @@ function zimbraRestoreDomainsDkim() {
   done
 }
 
-# Create mailing lists registred in the backup, and associate all their members
+# Create mailing lists registred in the backup, create the aliases, and add all the members
 function zimbraRestoreLists() {
   local backup_path="${_backups_path}/lists"
   local lists=$(ls "${backup_path}")
 
   for list_email in ${lists}; do
-    local backup_file="${backup_path}/${list_email}"
+    local backup_path_list="${backup_path}/${list_email}"
+    local backup_file_members="${backup_path_list}/members"
+    local backup_file_aliases="${backup_path_list}/aliases"
 
-    if [ ! -f "${backup_file}" -o ! -r "${backup_file}" ]; then
-      log_err "File <${backup_file}> is not a regular file or is not readable"
+    if [ ! -d "${backup_path_list}" -o ! -x "${backup_path_list}" -o ! -r "${backup_path_list}" ]; then
+      log_err "Directory <$backup_path_list> is not a directory or is not readable"
       exit 1
     fi
 
-    log_debug "Creating mailing list <${list_email}>"
+    if [ ! -f "${backup_file_members}" -o ! -r "${backup_file_members}" ]; then
+      log_err "File <${backup_file_members}> is not a regular file or is not readable"
+      exit 1
+    fi
+
+    if [ ! -f "${backup_file_aliases}" -o ! -r "${backup_file_aliases}" ]; then
+      log_err "File <${backup_file_aliases}> is not a regular file or is not readable"
+      exit 1
+    fi
+
+    log_debug "Create mailing list <${list_email}>"
     zimbraCreateList "${list_email}"
 
+    log_debug "${list_email}: Restore aliases"
+
+    while read alias_email; do
+      log_debug "${list_email}: Add <${alias_email}> as a list alias"
+      zimbraSetListAlias "${list_email}" "${alias_email}"
+    done < "${backup_file_aliases}"
+
+    log_debug "${list_email}: Restore members"
+
     while read member_email; do
-      log_debug "${list_email}: Add <${member_email}> as a member"
+      log_debug "${list_email}: Add <${member_email}> as a list member"
       zimbraSetListMember "${list_email}" "${member_email}"
-    done < "${backup_file}"
+    done < "${backup_file_members}"
   done
 }
 
@@ -327,6 +324,7 @@ function zimbraRestoreAccountCatchAll() {
   fi
 }
 
+# Set an email address to which all mails will be automatically forwarded
 function zimbraRestoreAccountForwarding() {
   local email="${1}"
   local backup_path="${_backups_path}/accounts/${email}"
@@ -353,6 +351,26 @@ function zimbraRestoreAccountForwarding() {
 
     zimbraSetAccountForwarding "${email}" "${to_email}" "${keep_copies}"
   fi
+}
+
+# Set an auto-reply message for when the user is on vacation, if configured when the account was backuped
+function zimbraRestoreAccountOutOfOffice() {
+  local email="${1}"
+
+  checkAccountSettingsFile "${email}"
+
+  local replyEnabled=$(extractFromAccountSettingsFile "${email}" zimbraFeatureOutOfOfficeReplyEnabled)
+  local cacheDuration=$(extractFromAccountSettingsFile "${email}" zimbraPrefOutOfOfficeCacheDuration)
+  local externalReply=$(extractFromAccountSettingsFile "${email}" zimbraPrefOutOfOfficeExternalReply)
+  local externalReplyEnabled=$(extractFromAccountSettingsFile "${email}" zimbraPrefOutOfOfficeExternalReplyEnabled)
+  local fromDate=$(extractFromAccountSettingsFile "${email}" zimbraPrefOutOfOfficeFromDate)
+  local reply=$(extractFromAccountSettingsFile "${email}" zimbraPrefOutOfOfficeReply)
+  local replyEnabled=$(extractFromAccountSettingsFile "${email}" zimbraPrefOutOfOfficeReplyEnabled)
+  local statusAlertOnLogin=$(extractFromAccountSettingsFile "${email}" zimbraPrefOutOfOfficeStatusAlertOnLogin)
+  local untilDate=$(extractFromAccountSettingsFile "${email}" zimbraPrefOutOfOfficeUntilDate)
+
+  zimbraSetAccountOutOfOffice "${email}" "${replyEnabled}" "${cacheDuration}" "${externalReply}" "${externalReplyEnabled}"\
+    "${fromDate}" "${reply}" "${replyEnabled}" "${statusAlertOnLogin}" "${untilDate}"
 }
 
 # Set all the email aliases registred for an account in the backup
@@ -633,6 +651,9 @@ ${_exclude_accounts} || {
 
           log_debug "${email}: Restore Forwarding setting"
           zimbraRestoreAccountForwarding "${email}"
+
+          log_debug "${email}: Restore OutOfOffice settings"
+          zimbraRestoreAccountOutOfOffice "${email}"
         }
 
         ${_exclude_data} || {
