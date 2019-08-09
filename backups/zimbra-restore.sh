@@ -150,30 +150,6 @@ function cleanFailedProcess() {
   fi
 }
 
-# Check if the settings file of the account backup is ready to be used
-# Useful for backups to check if zimbraBackupAccountSettings has been already
-# called to create the file
-function checkAccountSettingsFile() {
-  local email="${1}"
-  local backup_file="${_backups_path}/accounts/${email}/settings"
-
-  if [ ! -f "${backup_file}" -o ! -r "${backup_file}" ]; then
-    log_err "File <${backup_file}> is missing, is not a regular file or is not readable"
-    exit 1
-  fi
-}
-
-# Extract the value of a setting from the settings file available in the backup
-# Should be secured with a call to checkAccountSettingsFile before using it
-function extractFromAccountSettingsFile() {
-  local email="${1}"
-  local field="${2}"
-  local backup_file="${_backups_path}/accounts/${email}/settings"
-  local value=$( (sed -n -e '/^'$field':/,/^[a-zA-Z0-9]*:/ p' ${backup_file} || true) | sed '$ d' | sed -e 's/^'$field': //g')
-
-  printf '%s' "${value}"
-}
-
 # Return the size in human-readable bytes of a data.tar file
 function getAccountDataFileSize() {
   local email="${1}"
@@ -349,6 +325,7 @@ function zimbraRestoreAccountCatchAll() {
   fi
 }
 
+# Set an email address to which all mails will be automatically forwarded
 function zimbraRestoreAccountForwarding() {
   local email="${1}"
   local backup_path="${_backups_path}/accounts/${email}"
@@ -375,6 +352,26 @@ function zimbraRestoreAccountForwarding() {
 
     zimbraSetAccountForwarding "${email}" "${to_email}" "${keep_copies}"
   fi
+}
+
+# Set an auto-reply message for when the user is on vacation, if configured when the account was backuped
+function zimbraRestoreAccountOutOfOffice() {
+  local email="${1}"
+
+  checkAccountSettingsFile "${email}"
+
+  local replyEnabled=$(extractFromAccountSettingsFile "${email}" zimbraFeatureOutOfOfficeReplyEnabled)
+  local cacheDuration=$(extractFromAccountSettingsFile "${email}" zimbraPrefOutOfOfficeCacheDuration)
+  local externalReply=$(extractFromAccountSettingsFile "${email}" zimbraPrefOutOfOfficeExternalReply)
+  local externalReplyEnabled=$(extractFromAccountSettingsFile "${email}" zimbraPrefOutOfOfficeExternalReplyEnabled)
+  local fromDate=$(extractFromAccountSettingsFile "${email}" zimbraPrefOutOfOfficeFromDate)
+  local reply=$(extractFromAccountSettingsFile "${email}" zimbraPrefOutOfOfficeReply)
+  local replyEnabled=$(extractFromAccountSettingsFile "${email}" zimbraPrefOutOfOfficeReplyEnabled)
+  local statusAlertOnLogin=$(extractFromAccountSettingsFile "${email}" zimbraPrefOutOfOfficeStatusAlertOnLogin)
+  local untilDate=$(extractFromAccountSettingsFile "${email}" zimbraPrefOutOfOfficeUntilDate)
+
+  zimbraSetAccountOutOfOffice "${email}" "${replyEnabled}" "${cacheDuration}" "${externalReply}" "${externalReplyEnabled}"\
+    "${fromDate}" "${reply}" "${replyEnabled}" "${statusAlertOnLogin}" "${untilDate}"
 }
 
 # Set all the email aliases registred for an account in the backup
@@ -444,35 +441,6 @@ function zimbraRestoreAccountFilters() {
   fi
 
   zimbraSetAccountFilters "${email}" "${backup_file}"
-}
-
-# Restore Out Of Office settings for the account
-function zimbraRestoreAccountOOO() {
-  local ooo_settings="zimbraFeatureOutOfOfficeReplyEnabled
-                      zimbraPrefOutOfOfficeCacheDuration
-                      zimbraPrefOutOfOfficeExternalReply
-                      zimbraPrefOutOfOfficeExternalReplyEnabled
-                      zimbraPrefOutOfOfficeFromDate
-                      zimbraPrefOutOfOfficeReply
-                      zimbraPrefOutOfOfficeReplyEnabled
-                      zimbraPrefOutOfOfficeStatusAlertOnLogin
-                      zimbraPrefOutOfOfficeUntilDate"
-
-  local email="${1}"
-  local backup_path="${_backups_path}/accounts/${email}"
-  local backup_file="${backup_path}/settings"
-
-  if [ ! -f "${backup_file}" -o ! -r "${backup_file}" ]; then
-    log_err "${email}: File <${backup_file}> is missing, is not a regular file or is not readable"
-    log_err "${email}: Account Out Of Office settings will *NOT* be restored"
-    return
-  fi
-
-  for field in $ooo_settings; do
-     local value=$(extractFromAccountSettingsFile $email $field)
-     zimbraSetAccount "${email}" "${field}" "${value}"
-  done
-
 }
 
 # Restore all the data for the account, with folders/mails/tasks/calendar/etc
@@ -686,7 +654,7 @@ ${_exclude_accounts} || {
           zimbraRestoreAccountForwarding "${email}"
 
           log_debug "${email}: Restore OutOfOffice settings"
-          zimbraRestoreAccountOOO "${email}"
+          zimbraRestoreAccountOutOfOffice "${email}"
         }
 
         ${_exclude_data} || {

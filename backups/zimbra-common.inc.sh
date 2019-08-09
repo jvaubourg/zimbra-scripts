@@ -95,14 +95,28 @@ function execZimbraCmd() {
   sudo -u "${_zimbra_user}" env "${path}" "${cmd[@]}"
 }
 
-# During a backup: only usable after calling zimbraBackupAccountSettings
+# Check if the settings file of the account backup is ready to be used
+# During a backup: check if zimbraBackupAccountSettings was called and worked
+# During restore: check if the settings was correctly backuped
+function checkAccountSettingsFile() {
+  local email="${1}"
+  local backup_file="${_backups_path}/accounts/${email}/settings"
+
+  if [ ! -f "${backup_file}" -o ! -r "${backup_file}" ]; then
+    log_err "File <${backup_file}> is missing, is not a regular file or is not readable"
+    exit 1
+  fi
+}
+
+# Extract the value of a setting from the settings file, which has to be already available in the backup
+# Should be secured with a call to checkAccountSettingsFile before using it
 function extractFromAccountSettingsFile() {
   local email="${1}"
   local field="${2}"
-  local settings_file="${_backups_path}/accounts/${email}/settings"
-  local value=$((grep "^${field}:" "${settings_file}" || true) | sed "s/^${field}: //")
+  local backup_file="${_backups_path}/accounts/${email}/settings"
+  local multiline_value=$(sed -ne "/^${field}':/,/^[a-zA-Z0-9]*:/p; \$ d; s/^${field}: //g")
 
-  printf '%s' "${value}"
+  printf '%s' "${multiline_value}"
 }
 
 # Hides IDs returned by Zimbra when creating an object
@@ -413,17 +427,6 @@ function zimbraSetAccountLock() {
   execZimbraCmd cmd
 }
 
-function zimbraSetAccount() {
-  local email="${1}"
-  local field="${2}"
-  local value="${3}"
-
-  cmd=(zmprov modifyAccount "${email}" "${field}" "${value}")
-
-  execZimbraCmd cmd
-}
-
-
 function zimbraSetAccountCatchAll() {
   local email="${1}"
   local at_domain="${2}"
@@ -444,6 +447,47 @@ function zimbraSetAccountForwarding() {
     local cmd=(zmprov modifyAccount "${email}" zimbraPrefMailLocalDeliveryDisabled TRUE)
     execZimbraCmd cmd
   fi
+}
+
+function zimbraSetAccountOutOfOffice() {
+  local email="${1}"
+  local replyEnabled=${2}
+  local cacheDuration=${3}
+  local externalReply=${4}
+  local externalReplyEnabled=${5}
+  local fromDate=${6}
+  local reply=${7}
+  local replyEnabled=${8}
+  local statusAlertOnLogin=${9}
+  local untilDate=${10}
+  local cmd=
+
+  cmd=(zmprov modifyAccount "${email}" zimbraFeatureOutOfOfficeReplyEnabled "${replyEnabled}")
+  execZimbraCmd cmd
+
+  cmd=(zmprov modifyAccount "${email}" zimbraPrefOutOfOfficeCacheDuration "${cacheDuration}")
+  execZimbraCmd cmd
+
+  cmd=(zmprov modifyAccount "${email}" zimbraPrefOutOfOfficeExternalReply "${externalReply}")
+  execZimbraCmd cmd
+
+  cmd=(zmprov modifyAccount "${email}" zimbraPrefOutOfOfficeExternalReplyEnabled "${externalReplyEnabled}")
+  execZimbraCmd cmd
+
+  cmd=(zmprov modifyAccount "${email}" zimbraPrefOutOfOfficeFromDate "${fromDate}")
+  execZimbraCmd cmd
+
+  cmd=(zmprov modifyAccount "${email}" zimbraPrefOutOfOfficeReply "${reply}")
+  execZimbraCmd cmd
+
+  cmd=(zmprov modifyAccount "${email}" zimbraPrefOutOfOfficeReplyEnabled "${replyEnabled}")
+  execZimbraCmd cmd
+
+  cmd=(zmprov modifyAccount "${email}" zimbraPrefOutOfOfficeStatusAlertOnLogin "${statusAlertOnLogin}")
+  execZimbraCmd cmd
+
+  cmd=(zmprov modifyAccount "${email}" zimbraPrefOutOfOfficeUntilDate "${untilDate}")
+  execZimbraCmd cmd
 }
 
 function zimbraSetAccountAlias() {
