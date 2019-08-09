@@ -387,7 +387,6 @@ function zimbraBackupAccountSettingSignatures() {
     # A signature with no name is possible with older versions of Zimbra
     if [ -z "${name}" ]; then
       log_warn "${email}/Settings: One signature not saved (no name)"
-      rm -f "${tmp_backup_file}"
     else
 
       # A field zimbraPrefMailSignatureHTML instead of zimbraPrefMailSignature means an HTML signature
@@ -410,11 +409,11 @@ function zimbraBackupAccountSettingSignatures() {
       sed '${ /^$/d }' -i "${backup_file}"
     fi
 
-    rm "${tmp_backup_file}"
+    rm -f "${tmp_backup_file}"
   done
 
   # Remove signature/ folder if no signature was found (ie. empty folder)
-  find accounts/admin@choca.pics/settings/signatures/ -maxdepth 0 -type d -empty -exec rmdir '{}' \;
+  find "${backup_path}" -maxdepth 0 -type d -empty -exec rmdir '{}' \;
 }
 
 # Save the Sieve filters defined for the account
@@ -606,13 +605,19 @@ fi
         (${_include_all} || ${_include_server_settings}) && {
           log_info "${email}: Backuping settings"
 
-          log_info "${email}/Settings: Backuping raw file"
+          log_info "${email}/Settings: Backuping raw settings file"
           zimbraBackupAccountSettingsFile "${email}"
 
-          log_info "${email}/Settings: Backuping identity-related ones"
+          log_info "${email}/Settings: Backuping identity-related settings"
           zimbraBackupAccountIdentitySettings "${email}"
 
-          log_info "${email}/Settings: Backuping other ones"
+          log_info "${email}/Settings: Backuping aliases"
+          zimbraBackupAccountSettingAliases "${email}"
+
+          log_info "${email}/Settings: Backuping signatures"
+          zimbraBackupAccountSettingSignatures "${email}"
+
+          log_info "${email}/Settings: Backuping other settings"
           zimbraBackupAccountOtherSettings "${email}" "
             mailSieveScript
             prefMailForwardingAddress
@@ -628,12 +633,6 @@ fi
             prefOutOfOfficeReplyEnabled
             prefOutOfOfficeStatusAlertOnLogin
             prefOutOfOfficeUntilDate"
-
-          log_info "${email}/Settings: Backuping aliases"
-          zimbraBackupAccountSettingAliases "${email}"
-
-          log_info "${email}/Settings: Backuping signatures"
-          zimbraBackupAccountSettingSignatures "${email}"
         }
 
         (${_include_all} || ${_include_accounts_data}) && {
