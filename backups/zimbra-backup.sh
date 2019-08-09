@@ -473,9 +473,10 @@ function backupInfo() {
 
   install -o "${_zimbra_user}" -g "${_zimbra_group}" -d "${backup_path}"
 
-  date > "${backup_path}/date"
-  printf '%s ' "${@@Q}" > "${backup_path}/command_line"
+  # Substitution ${var@Q} is not available in Bash 4
+  printf '%q ' "${@}" > "${backup_path}/command_line"
   echo >> "${backup_path}/command_line"
+  date > "${backup_path}/date"
   zimbraGetVersion > "${backup_path}/zimbra_version"
   install -o "${_zimbra_user}" -g "${_zimbra_group}" /etc/redhat-release "${backup_path}/centos_version"
 
