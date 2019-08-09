@@ -131,7 +131,7 @@ function removeFileIfEmpty() {
   local file="${1}"
 
   if [ -f "${file}" -a ! -s "${file}" ]; then
-    rm -f "${files}"
+    rm -f "${file}"
   fi
 }
 
