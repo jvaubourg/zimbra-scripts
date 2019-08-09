@@ -222,7 +222,7 @@ function zimbraGetAccounts() {
 function zimbraGetAccountAliases() {
   local email="${1}"
 
-  extractFromAccountSettingsFile "${email}" zimbraMailAlias
+  zimbraGetAccountSetting "${email}" zimbraMailAlias
 }
 
 function zimbraGetAccountSignatures() {

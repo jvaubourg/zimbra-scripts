@@ -514,16 +514,16 @@ fi
 (${_include_all} || ${_include_server_settings}) && {
   log_info "Backuping server-side settings"
 
-  log_info "Server: Backuping admins list"
+  log_info "Server/Settings: Backuping admins list"
   zimbraBackupServerAdmins
 
-  log_info "Server: Backuping domains"
+  log_info "Server/Settings: Backuping domains"
   zimbraBackupServerDomains
 
-  log_info "Server: Backuping DKIM keys"
+  log_info "Server/Settings: Backuping DKIM keys"
   zimbraBackupServerDomainsDkim
 
-  log_info "Server: Backuping mailing lists"
+  log_info "Server/Settings: Backuping mailing lists"
   zimbraBackupServerLists
 }
 
