@@ -472,7 +472,7 @@ while getopts 'm:x:s:lb:p:u:g:i:d:h' opt; do
     p) _zimbra_main_path="${OPTARG%/}" ;;
     u) _zimbra_user="${OPTARG}" ;;
     g) _zimbra_group="${OPTARG}" ;;
-    i) { _include_all=false
+    i) _include_all=false
        for subopt in ${OPTARG}; do
          case "${subopt}" in
            server_settings) _include_server_settings=true ;;
@@ -480,7 +480,7 @@ while getopts 'm:x:s:lb:p:u:g:i:d:h' opt; do
            accounts_data) _include_accounts_data=true ;;
            *) log_err "Value <${subopt}> not supported by option -e"; exit 1 ;;
          esac
-       done ;; }
+       done ;;
     d) _debug_mode="${OPTARG}" ;;
     h) exit_usage 0 ;;
     \?) exit_usage 1 ;;
