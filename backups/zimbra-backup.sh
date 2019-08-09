@@ -249,7 +249,7 @@ function zimbraAccountLock() {
 
 # Save a list of the accounts marked as admin
 function zimbraBackupServerAdmins() {
-  local backup_path="${_backups_path}/admin"
+  local backup_path="${_backups_path}/server"
   local backup_file="${backup_path}/admin_accounts"
 
   install -o "${_zimbra_user}" -g "${_zimbra_group}" -d "${backup_path}"
@@ -258,35 +258,36 @@ function zimbraBackupServerAdmins() {
 
 # Save a list of the registred domains
 function zimbraBackupServerDomains() {
-  local backup_path="${_backups_path}/admin"
-  local backup_file="${backup_path}/domains"
+  local backup_path="${_backups_path}/server/domains"
 
-  install -o "${_zimbra_user}" -g "${_zimbra_group}" -d "${backup_path}"
-  zimbraGetDomains > "${backup_file}"
+  for domain in $(zimbraGetDomains > "${backup_file}"); do
+    install -o "${_zimbra_user}" -g "${_zimbra_group}" -d "${backup_path}/${domain}"
+  done
 }
 
 # Save the DKIM info for domains using this feature
 # Usable only after calling zimbraBackupServerDomains
 function zimbraBackupServerDomainsDkim() {
-  local backup_path="${_backups_path}/admin/domains_dkim"
-  local domains_file="${_backups_path}/admin/domains"
+  local backup_path="${_backups_path}/server/domains"
+  local domains=$(ls "${_backups_path}")
 
-  install -o "${_zimbra_user}" -g "${_zimbra_group}" -d "${backup_path}"
-
-  while read domain; do
-    local backup_file="${backup_path}/${domain}"
+  for domain in ${domains}; do
+    local backup_path_dkim="${backups_path}/${domain}"
+    local backup_file="${backup_path_dkim}/dkim_info"
     local dkim_info=$(zimbraGetDkimInfo "${domain}" | (grep -v 'No DKIM Information' || true))
 
+    install -o "${_zimbra_user}" -g "${_zimbra_group}" -d "${backup_path_dkim}"
+
     if [ -n "${dkim_info}" ]; then
-      printf '%s' "${dkim_info}" > "${backup_file}"
+      printf '%s\n' "${dkim_info}" > "${backup_file}"
     fi
-  done < "${domains_file}"
+  done
 }
 
 # Save all existing mailing lists with a list of their members
 function zimbraBackupServerLists() {
   for list_email in $(zimbraGetLists); do
-    local backup_path="${_backups_path}/lists/${list_email}"
+    local backup_path="${_backups_path}/server/lists/${list_email}"
     local backup_file=
 
     install -o "${_zimbra_user}" -g "${_zimbra_group}" -d "${backup_path}"
@@ -313,18 +314,42 @@ function zimbraBackupAccountSettingsFile() {
   zimbraGetAccountSettingsFile "${email}" > "${backup_file}"
 }
 
-# Save important account settings in individual files
+# Save a list of settings for the account
 function zimbraBackupAccountSettings() {
   local email="${1}"
   local fields="${2}"
-  local backup_path="${_backups_path}/accounts/${email}/settings"
+  local folder="${3}"
+  local backup_path="${_backups_path}/accounts/${email}/settings/${folder}"
 
   install -o "${_zimbra_user}" -g "${_zimbra_group}" -d "${backup_path}"
 
   for field in ${fields}; do
     local backup_file="${backup_path}/${field}"
+
+    log_debug "${email}/Settings: Backup setting <${field}>"
     zimbraGetAccountSetting "${email}" "${field}" > "${backup_file}"
+
+    if [ ! -s "${backup_file}" ]; then
+      log_debug "${email}/Settings: Setting <${field}> not saved because it has no value"
+      rm -f "${backup_file}"
+    fi
   done
+}
+
+# Save account identity-related settings
+function zimbraBackupAccountIdentitySettings() {
+  local email="${1}"
+  local fields="cn givenName displayName userPassword"
+
+  zimbraBackupAccountSettings "${email}" "${fields}" identity
+}
+
+# Save account user-defined settings for the account
+function zimbraBackupAccountOtherSettings() {
+  local email="${1}"
+  local fields="${2}"
+
+  zimbraBackupAccountSettings "${email}" "${fields}" others
 }
 
 # Save all the email aliases registred for the account
@@ -560,8 +585,11 @@ fi
           log_info "${email}/Settings: Backuping raw settings file"
           zimbraBackupAccountSettingsFile "${email}"
 
-          log_info "${email}/Settings: Backuping individual settings"
-          zimbraBackupAccountSettings "${email}" "
+          log_info "${email}/Settings: Backuping identity-related settings"
+          zimbraBackupAccountIdentitySettings "${email}"
+
+          log_info "${email}/Settings: Backuping other settings"
+          zimbraBackupAccountOtherSettings "${email}" "
             mailSieveScript
             prefMailForwardingAddress
             mailCatchAllAddress
