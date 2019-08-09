@@ -127,6 +127,14 @@ USAGE
   exit "${status}"
 }
 
+function removeFileIfEmpty() {
+  local file="${1}"
+
+  if [ -f "${file}" -a ! -s "${file}" ]; then
+    rm -f "${files}"
+  fi
+}
+
 
 ####################
 ## CORE FUNCTIONS ##
@@ -252,6 +260,7 @@ function zimbraBackupServerAdmins() {
 
   install -o "${_zimbra_user}" -g "${_zimbra_group}" -d "${backup_path}"
   zimbraGetAdminAccounts > "${backup_file}"
+  removeFileIfEmpty "${backup_file}"
 }
 
 # Save a list of the registred domains
@@ -272,13 +281,11 @@ function zimbraBackupServerDomainsDkim() {
   for domain in ${domains}; do
     local backup_path_dkim="${backup_path}/${domain}"
     local backup_file="${backup_path_dkim}/dkim_info"
-    local dkim_info=$(zimbraGetDkimInfo "${domain}" | (grep -v 'No DKIM Information' || true))
 
     install -o "${_zimbra_user}" -g "${_zimbra_group}" -d "${backup_path_dkim}"
 
-    if [ -n "${dkim_info}" ]; then
-      printf '%s\n' "${dkim_info}" > "${backup_file}"
-    fi
+    zimbraGetDkimInfo "${domain}" | (grep -v 'No DKIM Information' || true) > "${backup_file}"
+    removeFileIfEmpty "${backup_file}"
   done
 }
 
@@ -293,10 +300,12 @@ function zimbraBackupServerLists() {
     log_debug "Server/Settings: Backup members of list ${list_email}"
     backup_file="${backup_path}/members"
     zimbraGetListMembers "${list_email}" | (grep -F @ | grep -v '^#' || true) > "${backup_file}"
+    removeFileIfEmpty "${backup_file}"
 
     log_debug "Server/Settings: Backup aliases of list ${list_email}"
     backup_file="${backup_path}/aliases"
     zimbraGetListAliases "${list_email}" | (grep -F @ | grep -v '^#' || true) > "${backup_file}"
+    removeFileIfEmpty "${backup_file}"
   done
 }
 
@@ -326,11 +335,7 @@ function zimbraBackupAccountSettings() {
 
     log_debug "${email}/Settings: Backup setting <${field}>"
     zimbraGetAccountSetting "${email}" "${field}" > "${backup_file}"
-
-    if [ ! -s "${backup_file}" ]; then
-      log_debug "${email}/Settings: Setting <${field}> not saved because it has no value"
-      rm -f "${backup_file}"
-    fi
+    removeFileIfEmpty "${backup_file}"
   done
 }
 
@@ -358,6 +363,7 @@ function zimbraBackupAccountSettingAliases() {
 
   install -o "${_zimbra_user}" -g "${_zimbra_group}" -d "${backup_path}"
   zimbraGetAccountAliases "${email}" > "${backup_file}"
+  removeFileIfEmpty "${backup_file}"
 }
 
 # Save all signatures created for the account
@@ -372,8 +378,7 @@ function zimbraBackupAccountSettingSignatures() {
   zimbraGetAccountSignatures "${email}" | awk "/^# name / { file=\"${backup_path}/\"++i; next } { print > file }"
 
   # Every signature file has to be parsed to reorganize the information inside
-  find "${backup_path}" -mindepth 1 | while read tmp_backup_file
-  do
+  find "${backup_path}" -mindepth 1 | while read tmp_backup_file; do
     local extension='txt'
 
     # Save the name of the signature from the Zimbra field
@@ -382,6 +387,7 @@ function zimbraBackupAccountSettingSignatures() {
     # A signature with no name is possible with older versions of Zimbra
     if [ -z "${name}" ]; then
       log_warn "${email}/Settings: One signature not saved (no name)"
+      rm -f "${tmp_backup_file}"
     else
 
       # A field zimbraPrefMailSignatureHTML instead of zimbraPrefMailSignature means an HTML signature
@@ -406,6 +412,9 @@ function zimbraBackupAccountSettingSignatures() {
 
     rm "${tmp_backup_file}"
   done
+
+  # Remove signature/ folder if no signature was found (ie. empty folder)
+  find accounts/admin@choca.pics/settings/signatures/ -maxdepth 0 -type d -empty -exec rmdir '{}' \;
 }
 
 # Save the Sieve filters defined for the account
@@ -416,6 +425,7 @@ function zimbraBackupAccountFilters() {
 
   install -o "${_zimbra_user}" -g "${_zimbra_group}" -d "${backup_path}"
   zimbraGetAccountFilters "${email}" > "${backup_file}"
+  removeFileIfEmpty "${backup_file}"
 }
 
 # Save all the data for the account, with folders/mails/tasks/calendar/etc
@@ -432,7 +442,7 @@ function zimbraBackupAccountData() {
   selectAccountDataPathsToExclude "${email}"
 
   if [ -s "${backup_path}/excluded_data_paths" ]; then
-    log_debug "${email}/Data: Calculate size of the data to backup"
+    log_debug "${email}/Data: Calculate sizes of what is going to be backuped or excluded"
 
     local exclude_paths=$(cat "${backup_path}/excluded_data_paths")
     local exclude_paths_count=$(wc -l "${backup_path}/excluded_data_paths" | awk '{ print $1 }')
@@ -444,9 +454,9 @@ function zimbraBackupAccountData() {
       filter_query="${filter_query} and not under:\"${escaped_path}\""
     done < "${backup_path}/excluded_data_paths"
 
-    log_info "${email}/Data: ${exclude_data_size} of data are going to be excluded (${exclude_paths_count} folders)"
+    log_info "${email}/Data: ${exclude_data_size} will be excluded (${exclude_paths_count} folders)"
   else
-    log_debug "${email}/Data: Calculate size of the data (nothing to exclude)"
+    log_debug "${email}/Data: Calculate total size (nothing to exclude)"
     backup_data_size=$(zimbraGetAccountDataSize "${email}")
   fi
 
@@ -455,8 +465,24 @@ function zimbraBackupAccountData() {
     log_debug "${email}/Data: Filter query is <${filter_query}>"
   fi
 
-  log_info "${email}/Data: ${backup_data_size} of data are going to be backuped"
+  log_info "${email}/Data: ${backup_data_size} are going to be backuped"
   zimbraGetAccountData "${email}" "${filter_query}" > "${backup_file}"
+}
+
+function backupInfo() {
+  local backup_path="${_backups_path}/info"
+
+  install -o "${_zimbra_user}" -g "${_zimbra_group}" -d "${backup_path}"
+
+  date > "${backup_path}/date"
+  printf '%s %s' "${0}" "${@}" > "${backup_path}/command_line"
+  zimbraGetVersion > "${backup_path}/zimbra_version"
+  cp /etc/redhat-release "${backup_path}/centos_version"
+
+  backup_path="${backups_path}/scripts"
+  install -o "${_zimbra_user}" -g "${_zimbra_group}" -d "${backup_path}"
+  install -o "${_zimbra_user}" -g "${_zimbra_group}" /usr/share/zimbra-scripts/backups/zimbra-backup.sh "${backup_path}"
+  install -o "${_zimbra_user}" -g "${_zimbra_group}" /usr/share/zimbra-scripts/backups/zimbra-restore.sh "${backup_path}"
 }
 
 
@@ -580,13 +606,13 @@ fi
         (${_include_all} || ${_include_server_settings}) && {
           log_info "${email}: Backuping settings"
 
-          log_info "${email}/Settings: Backuping raw settings file"
+          log_info "${email}/Settings: Backuping raw file"
           zimbraBackupAccountSettingsFile "${email}"
 
-          log_info "${email}/Settings: Backuping identity-related settings"
+          log_info "${email}/Settings: Backuping identity-related ones"
           zimbraBackupAccountIdentitySettings "${email}"
 
-          log_info "${email}/Settings: Backuping other settings"
+          log_info "${email}/Settings: Backuping other ones"
           zimbraBackupAccountOtherSettings "${email}" "
             mailSieveScript
             prefMailForwardingAddress
@@ -622,6 +648,7 @@ fi
   fi
 }
 
+backupInfo
 setZimbraPermissions "${_backups_path}"
 showFullProcessDuration
 

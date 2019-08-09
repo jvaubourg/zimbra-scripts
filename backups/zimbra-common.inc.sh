@@ -293,6 +293,11 @@ function zimbraIsAccountExisting() {
   [[ "${_existing_accounts}" =~ (^| )"${email}"($| ) ]]
 }
 
+function zimbraGetVersion() {
+  local cmd=(zmcontrol -v)
+  execZimbraCmd cmd
+}
+
 
 ##
 ## ZIMBRA SETTERS
