@@ -474,9 +474,10 @@ function backupInfo() {
   install -o "${_zimbra_user}" -g "${_zimbra_group}" -d "${backup_path}"
 
   date > "${backup_path}/date"
-  printf '%s %s\n' "${0}" "${@@Q}" > "${backup_path}/command_line"
+  printf '%s ' "${@@Q}" > "${backup_path}/command_line"
+  echo >> "${backup_path}/command_line"
   zimbraGetVersion > "${backup_path}/zimbra_version"
-  cp /etc/redhat-release "${backup_path}/centos_version"
+  install -o "${_zimbra_user}" -g "${_zimbra_group}" /etc/redhat-release "${backup_path}/centos_version"
 
   backup_path="${backup_path}/scripts"
   install -o "${_zimbra_user}" -g "${_zimbra_group}" -d "${backup_path}"
@@ -647,7 +648,7 @@ fi
   fi
 }
 
-backupInfo
+backupInfo "${0}" "${@}"
 setZimbraPermissions "${_backups_path}"
 showFullProcessDuration
 
