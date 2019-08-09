@@ -160,12 +160,10 @@ function cleanFailedProcess() {
 # of their subfolders (they can be implied in Sieve filters defined for the account)
 function selectAccountDataPathsToExclude() {
   local email="${1}"
-  local backup_path="${_backups_path}/accounts/${email}"
+  local backup_path="${_backups_path}/accounts/${email}/data"
   local backup_file="${backup_path}/excluded_data_paths"
 
   install -o "${_zimbra_user}" -g "${_zimbra_group}" -d "${backup_path}"
-  :> "${backup_file}"
-  :> "${backup_file}_full"
 
   if [ "${#_backups_exclude_data_regexes[@]}" -gt 0 ]; then
     local folders=$(zimbraGetAccountFoldersList "${email}")
@@ -269,7 +267,7 @@ function zimbraBackupServerDomains() {
 # Usable only after calling zimbraBackupServerDomains
 function zimbraBackupServerDomainsDkim() {
   local backup_path="${_backups_path}/server/domains"
-  local domains=$(ls "${_backups_path}")
+  local domains=$(ls "${backup_path}")
 
   for domain in ${domains}; do
     local backup_path_dkim="${backup_path}/${domain}"
@@ -356,7 +354,7 @@ function zimbraBackupAccountOtherSettings() {
 function zimbraBackupAccountSettingAliases() {
   local email="${1}"
   local backup_path="${_backups_path}/accounts/${email}"
-  local backup_file="${backup_path}/aliases"
+  local backup_file="${backup_path}/settings/aliases"
 
   install -o "${_zimbra_user}" -g "${_zimbra_group}" -d "${backup_path}"
   zimbraGetAccountAliases "${email}" > "${backup_file}"
@@ -366,7 +364,7 @@ function zimbraBackupAccountSettingAliases() {
 # Signatures can be TXT or HTML and have a name
 function zimbraBackupAccountSettingSignatures() {
   local email="${1}"
-  local backup_path="${_backups_path}/accounts/${email}/signatures"
+  local backup_path="${_backups_path}/accounts/${email}/settings/signatures"
 
   install -o "${_zimbra_user}" -g "${_zimbra_group}" -d "${backup_path}"
 
@@ -424,7 +422,7 @@ function zimbraBackupAccountFilters() {
 # A TAR file is created and the size of the data to backup and to not backup are shown in logs
 function zimbraBackupAccountData() {
   local email="${1}"
-  local backup_path="${_backups_path}/accounts/${email}"
+  local backup_path="${_backups_path}/accounts/${email}/data"
   local backup_file="${backup_path}/data.tar"
   local backup_data_size=0B
   local filter_query=
