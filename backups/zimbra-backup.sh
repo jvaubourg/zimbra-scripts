@@ -260,7 +260,7 @@ function zimbraBackupServerAdmins() {
 function zimbraBackupServerDomains() {
   local backup_path="${_backups_path}/server/domains"
 
-  for domain in $(zimbraGetDomains > "${backup_file}"); do
+  for domain in $(zimbraGetDomains); do
     install -o "${_zimbra_user}" -g "${_zimbra_group}" -d "${backup_path}/${domain}"
   done
 }
@@ -272,7 +272,7 @@ function zimbraBackupServerDomainsDkim() {
   local domains=$(ls "${_backups_path}")
 
   for domain in ${domains}; do
-    local backup_path_dkim="${backups_path}/${domain}"
+    local backup_path_dkim="${backup_path}/${domain}"
     local backup_file="${backup_path_dkim}/dkim_info"
     local dkim_info=$(zimbraGetDkimInfo "${domain}" | (grep -v 'No DKIM Information' || true))
 
