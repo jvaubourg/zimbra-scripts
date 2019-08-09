@@ -95,30 +95,6 @@ function execZimbraCmd() {
   sudo -u "${_zimbra_user}" env "${path}" "${cmd[@]}"
 }
 
-# Check if the settings file of the account backup is ready to be used
-# During a backup: check if zimbraBackupAccountSettings was called and worked
-# During restore: check if the settings was correctly backuped
-function checkAccountSettingsFile() {
-  local email="${1}"
-  local backup_file="${_backups_path}/accounts/${email}/settings"
-
-  if [ ! -f "${backup_file}" -o ! -r "${backup_file}" ]; then
-    log_err "File <${backup_file}> is missing, is not a regular file or is not readable"
-    exit 1
-  fi
-}
-
-# Extract the value of a setting from the settings file, which has to be already available in the backup
-# Should be secured with a call to checkAccountSettingsFile before using it
-function extractFromAccountSettingsFile() {
-  local email="${1}"
-  local field="${2}"
-  local backup_file="${_backups_path}/accounts/${email}/settings"
-  local multiline_value=$(sed -ne "/^${field}':/,/^[a-zA-Z0-9]*:/p; \$ d; s/^${field}: //g")
-
-  printf '%s' "${multiline_value}"
-}
-
 # Hides IDs returned by Zimbra when creating an object
 # (Zimbra sometimes displays errors directly to stdout)
 function hideReturnedId() {
@@ -243,34 +219,6 @@ function zimbraGetAccounts() {
   echo -En $(execZimbraCmd cmd | (grep -vE '^(spam\.|ham\.|virus-quarantine\.|galsync[.@])' || true))
 }
 
-function zimbraGetAccountSettings() {
-  local email="${1}"
-  local cmd=(zmprov --ldap getAccount "${email}")
-
-  execZimbraCmd cmd
-}
-
-function zimbraGetAccountCatchAll() {
-  local email="${1}"
-
-  extractFromAccountSettingsFile "${email}" zimbraMailCatchAllAddress
-}
-
-function zimbraGetAccountForwarding() {
-  local email="${1}"
-  local to_email=$(extractFromAccountSettingsFile "${email}" zimbraPrefMailForwardingAddress)
-
-  if [ -n "${to_email}" ]; then
-    local keep_copies=$(extractFromAccountSettingsFile "${email}" zimbraPrefMailLocalDeliveryDisabled)
-
-    if [ -n "${keep_copies}" ]; then
-      keep_copies=FALSE
-    fi
-
-    printf '%s\n%s' "${to_email}" "${keep_copies}"
-  fi
-}
-
 function zimbraGetAccountAliases() {
   local email="${1}"
 
@@ -284,12 +232,19 @@ function zimbraGetAccountSignatures() {
   execZimbraCmd cmd
 }
 
-function zimbraGetAccountFilters() {
+function zimbraGetAccountSettingsFile() {
   local email="${1}"
-  local cmd=(zmprov getAccount "${email}" zimbraMailSieveScript)
+  local cmd=(zmprov getAccount "${email}")
 
-  # 1d removes the comment on the first line
-  execZimbraCmd cmd | sed '1d;s/^zimbraMailSieveScript: //'
+  execZimbraCmd cmd
+}
+
+function zimbraGetAccountSetting() {
+  local email="${1}"
+  local field="zimbra${2^}"
+  local cmd=(zmprov getAccount "${email}" "${field}")
+
+  execZimbraCmd cmd | sed "1d;\$d;s/^${field}: //'
 }
 
 function zimbraGetAccountFoldersList() {
@@ -512,15 +467,6 @@ function zimbraSetAccountSignature() {
 
   cmd=(zmprov createSignature "${email}" "${name}" "${field}" "${content}")
   execZimbraCmd cmd | hideReturnedId
-}
-
-function zimbraSetAccountFilters() {
-  local email="${1}"
-  local filters_path="${2}"
-  local filters=$(cat "${filters_path}")
-  local cmd=(zmprov modifyAccount "${email}" zimbraMailSieveScript "${filters}")
-
-  execZimbraCmd cmd
 }
 
 function zimbraSetAccountData() {
