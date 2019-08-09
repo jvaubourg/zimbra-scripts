@@ -244,7 +244,7 @@ function zimbraGetAccountSetting() {
   local field="zimbra${2^}"
   local cmd=(zmprov getAccount "${email}" "${field}")
 
-  execZimbraCmd cmd | sed "1d;\$d;s/^${field}: //'
+  execZimbraCmd cmd | sed "1d;\$d;s/^${field}: //"
 }
 
 function zimbraGetAccountFoldersList() {
