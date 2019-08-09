@@ -438,8 +438,12 @@ function zimbraBackupAccountData() {
 
   install -o "${_zimbra_user}" -g "${_zimbra_group}" -d "${backup_path}"
 
+  # Create an excluded_data_paths containing the list of folders to no backup in the data
+  # (based on _backups_exclude_data_regexes)
   selectAccountDataPathsToExclude "${email}"
 
+  # If there are folders to exclude, the size of the data to backup is not the size of the account
+  # and a query filter has to be created to ask Zimbra to not select them for the data export
   if [ -s "${backup_path}/excluded_data_paths" ]; then
     log_debug "${email}/Data: Calculate sizes of what is going to be backuped or excluded"
 
@@ -448,12 +452,15 @@ function zimbraBackupAccountData() {
     local exclude_data_size=$(getAccountExcludeDataSize "${email}" "${exclude_paths}")
     backup_data_size=$(getAccountIncludeDataSize "${email}" "${exclude_data_size}")
 
+    # Creating the filter query to exclude folders during the data export
     while read path; do
       local escaped_path="${path//\"/\\\"}"
       filter_query="${filter_query} and not under:\"${escaped_path}\""
     done < "${backup_path}/excluded_data_paths"
 
     log_info "${email}/Data: ${exclude_data_size} will be excluded (${exclude_paths_count} folders)"
+
+  # No folder to exclude
   else
     log_debug "${email}/Data: Calculate total size (nothing to exclude)"
     backup_data_size=$(zimbraGetAccountDataSize "${email}")
@@ -468,8 +475,9 @@ function zimbraBackupAccountData() {
   zimbraGetAccountData "${email}" "${filter_query}" > "${backup_file}"
 }
 
+# Save info about how was done the backup and in which environment
 function backupInfo() {
-  local backup_path="${_backups_path}/info"
+  local backup_path="${_backups_path}/backup_info"
 
   install -o "${_zimbra_user}" -g "${_zimbra_group}" -d "${backup_path}"
 
@@ -480,6 +488,8 @@ function backupInfo() {
   zimbraGetVersion > "${backup_path}/zimbra_version"
   install -o "${_zimbra_user}" -g "${_zimbra_group}" /etc/redhat-release "${backup_path}/centos_version"
 
+  # Current backup/restore scripts are saved to be sure to be able to restore the backup, even if the
+  # expected structure changes over the time
   backup_path="${backup_path}/scripts"
   install -o "${_zimbra_user}" -g "${_zimbra_group}" -d "${backup_path}"
   install -o "${_zimbra_user}" -g "${_zimbra_group}" /usr/share/zimbra-scripts/backups/zimbra-backup.sh "${backup_path}"
@@ -604,7 +614,7 @@ fi
           zimbraAccountLock "${email}"
         }
 
-        (${_include_all} || ${_include_server_settings}) && {
+        (${_include_all} || ${_include_accounts_settings}) && {
           log_info "${email}: Backuping settings"
 
           log_info "${email}/Settings: Backuping raw settings file"
