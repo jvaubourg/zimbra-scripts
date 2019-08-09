@@ -174,7 +174,7 @@ function selectAccountDataPathsToExclude() {
       local selected_folders=$(printf '%s' "${folders}" | (grep -- "^${regex}\\(\$\\|/.*\\)" || true))
 
       if [ -n "${selected_folders}" ]; then
-        log_debug "${email}: Raw list of the folders selected to be excluded: $(echo -En ${selected_folders})"
+        log_debug "${email}/Data: Raw list of the folders selected to be excluded: $(echo -En ${selected_folders})"
 
         # Will be used to restore the (empty) folders and subfolders
         printf '%s\n' "${selected_folders}" > "${backup_file}_full"
@@ -187,14 +187,14 @@ function selectAccountDataPathsToExclude() {
             local first_escaped=$(escapeGrepStringRegexChars "${first}")
 
             # The list of folders is sorted by Zimbra so the first path cannot be included in another one
-            log_debug "${email}: Folder <${first}> will be excluded"
+            log_debug "${email}/Data: Folder <${first}> will be excluded"
             printf '%s\n' "${first}" >> "${backup_file}"
 
             # Remove the saved folder and all of its subfolders from the selection and start again with the parent loop
             selected_folders=$(printf '%s' "${selected_folders}" | (grep -v -- "^${first_escaped}\\(\$\\|/\\)" || true))
           done
         else
-          log_debug "${email}: Folder <$(echo -En ${selected_folders})> will be excluded"
+          log_debug "${email}/Data: Folder <$(echo -En ${selected_folders})> will be excluded"
           printf '%s\n' "${selected_folders}" > "${backup_file}"
         fi
       fi
@@ -292,11 +292,11 @@ function zimbraBackupServerLists() {
 
     install -o "${_zimbra_user}" -g "${_zimbra_group}" -d "${backup_path}"
 
-    log_debug "Backup members of ${list_email}"
+    log_debug "Server/Settings: Backup members of list ${list_email}"
     backup_file="${backup_path}/members"
     zimbraGetListMembers "${list_email}" | (grep -F @ | grep -v '^#' || true) > "${backup_file}"
 
-    log_debug "Backup aliases of ${list_email}"
+    log_debug "Server/Settings: Backup aliases of list ${list_email}"
     backup_file="${backup_path}/aliases"
     zimbraGetListAliases "${list_email}" | (grep -F @ | grep -v '^#' || true) > "${backup_file}"
   done
@@ -383,7 +383,7 @@ function zimbraBackupAccountSettingSignatures() {
 
     # A signature with no name is possible with older versions of Zimbra
     if [ -z "${name}" ]; then
-      log_warn "${email}: One signature not saved (no name)"
+      log_warn "${email}/Settings: One signature not saved (no name)"
     else
 
       # A field zimbraPrefMailSignatureHTML instead of zimbraPrefMailSignature means an HTML signature
@@ -434,7 +434,7 @@ function zimbraBackupAccountData() {
   selectAccountDataPathsToExclude "${email}"
 
   if [ -s "${backup_path}/excluded_data_paths" ]; then
-    log_debug "${email}: Calculate size of the data to backup"
+    log_debug "${email}/Data: Calculate size of the data to backup"
 
     local exclude_paths=$(cat "${backup_path}/excluded_data_paths")
     local exclude_paths_count=$(wc -l "${backup_path}/excluded_data_paths" | awk '{ print $1 }')
@@ -446,18 +446,18 @@ function zimbraBackupAccountData() {
       filter_query="${filter_query} and not under:\"${escaped_path}\""
     done < "${backup_path}/excluded_data_paths"
 
-    log_info "${email}: ${exclude_data_size} of data are going to be excluded (${exclude_paths_count} folders)"
+    log_info "${email}/Data: ${exclude_data_size} of data are going to be excluded (${exclude_paths_count} folders)"
   else
-    log_debug "${email}: Calculate size of the data (nothing to exclude)"
+    log_debug "${email}/Data: Calculate size of the data (nothing to exclude)"
     backup_data_size=$(zimbraGetAccountDataSize "${email}")
   fi
 
   if [ -n "${filter_query}" ]; then
     filter_query="&query=${filter_query/ and /}"
-    log_debug "${email}: Data filter query is <${filter_query}>"
+    log_debug "${email}/Data: Filter query is <${filter_query}>"
   fi
 
-  log_info "${email}: ${backup_data_size} of data are going to be backuped"
+  log_info "${email}/Data: ${backup_data_size} of data are going to be backuped"
   zimbraGetAccountData "${email}" "${filter_query}" > "${backup_file}"
 }
 
