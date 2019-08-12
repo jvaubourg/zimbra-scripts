@@ -25,22 +25,21 @@ function exit_usage() {
 
     -m email
       Email of an account to include in the backup
-      Repeat this option as many times as necessary to backup more than only one account
       Cannot be used with -x at the same time
       [Default] All accounts
       [Example] -m foo@example.com -m bar@example.org
+      [Example] -m 'foo@example.com bar@example.org'
 
     -x email
       Email of an account to exclude of the backup
-      Repeat this option as many times as necessary to backup more than only one account
       Cannot be used with -m at the same time
       [Default] No exclusion
       [Example] -x foo@example.com -x bar@example.org
+      [Example] -x 'foo@example.com bar@example.org'
 
     -s path
       Path of a folder to skip when backuping data from accounts
       (can be a POSIX BRE regex for grep between ^ and $)
-      Repeat this option as many times as necessary to exclude different kind of folders
       [Default] No exclusion
       [Example] -s /Briefcase/movies -s '/Inbox/list-.*' -s '.*/nobackup'
 
@@ -71,9 +70,12 @@ function exit_usage() {
 
     -i ASSET
       Do a partial backup by selecting groups of settings/data
-      Repeat this option as many times as necessary to exclude more than only one asset
       [Default] Everything is backuped
-      [Example] -i server_settings -i accounts_settings
+
+      [Example] Backup full server configuration without user data:
+        -i server_settings -i accounts_settings
+      [Example] Backup accounts but not the configuration of the server itself:
+        -i accounts_settings -i accounts_data
 
       ASSET can be:
         server_settings
@@ -154,7 +156,7 @@ function cleanFailedProcess() {
 
     if [ -z "${ask_remove}" -o "${ask_remove}" = Y -o "${ask_remove}" = y ]; then
       if rm -rf "${_backups_path}/accounts/${_backuping_account}"; then
-        log_info "The failed backup of <${email}> has been removed"
+        log_info "Account<${email}>: Failed backup has been removed"
       fi
     fi
 
@@ -162,10 +164,10 @@ function cleanFailedProcess() {
   fi
 }
 
-# Save the list of folders to exclude from the backup for that account, based on the option passed to the script
+# Save the list of folders to exclude from the backup of this account, based on the option passed to the script
 # The excluded_data_paths file will contain the top folders to exclude (and so the subfolders will be excluded in the same time)
 # The excluded_data_paths_full will contain a full list of the excluded folders, to be able to restore them (empty) with all
-# of their subfolders (they can be implied in Sieve filters defined for the account)
+# of their subfolders (they can be implied in the Sieve filters defined for the account)
 function selectAccountDataPathsToExclude() {
   local email="${1}"
   local backup_path="${_backups_path}/accounts/${email}/data"
@@ -180,7 +182,7 @@ function selectAccountDataPathsToExclude() {
       local selected_folders=$(printf '%s' "${folders}" | (grep -- "^${regex}\\(\$\\|/.*\\)" || true))
 
       if [ -n "${selected_folders}" ]; then
-        log_debug "${email}/Data: Raw list of the folders selected to be excluded: $(echo -En ${selected_folders})"
+        log_debug "Account<${email}>/Data: Raw list of the folders selected to be excluded: $(echo -En ${selected_folders})"
 
         # Will be used to restore the (empty) folders and subfolders
         printf '%s\n' "${selected_folders}" > "${backup_file}_full"
@@ -193,14 +195,14 @@ function selectAccountDataPathsToExclude() {
             local first_escaped=$(escapeGrepStringRegexChars "${first}")
 
             # The list of folders is sorted by Zimbra so the first path cannot be included in another one
-            log_debug "${email}/Data: Folder <${first}> will be excluded"
+            log_debug "Account<${email}>/Data: Folder <${first}> will be excluded"
             printf '%s\n' "${first}" >> "${backup_file}"
 
             # Remove the saved folder and all of its subfolders from the selection and start again with the parent loop
             selected_folders=$(printf '%s' "${selected_folders}" | (grep -v -- "^${first_escaped}\\(\$\\|/\\)" || true))
           done
         else
-          log_debug "${email}/Data: Folder <$(echo -En ${selected_folders})> will be excluded"
+          log_debug "Account<${email}>/Data: Folder <$(echo -En ${selected_folders})> will be excluded"
           printf '%s\n' "${selected_folders}" > "${backup_file}"
         fi
       fi
@@ -208,8 +210,8 @@ function selectAccountDataPathsToExclude() {
   fi
 }
 
-# Return the total size in human-readable butes of the excluded folders
-# Used for the logging, to show who really uses the "excluded folders" feature and how many GB
+# Return the total size in human-readable bytes of the excluded folders
+# Used for the logging, to show who really uses the "excluded folders" feature and how many bytes
 # are saved in the backups
 function getAccountExcludeDataSize() {
   local email="${1}"
@@ -242,6 +244,8 @@ function getAccountIncludeDataSize() {
 }
 
 # Lock the account to be sure that nothing happens during the backup process
+# The accounts will be locked "forever", because it probably means that the server will be reinstalled
+# with a restoration
 function zimbraAccountLock() {
   local email="${1}"
 
@@ -276,7 +280,7 @@ function zimbraBackupServerDomains() {
 # Usable only after calling zimbraBackupServerDomains
 function zimbraBackupServerDomainsDkim() {
   local backup_path="${_backups_path}/server/domains"
-  local domains=$(ls "${backup_path}")
+  local domains=$(find "${backup_path}" -mindepth 1 -maxdepth 1 -type d -printf '%f ')
 
   for domain in ${domains}; do
     local backup_path_dkim="${backup_path}/${domain}"
@@ -289,7 +293,7 @@ function zimbraBackupServerDomainsDkim() {
   done
 }
 
-# Save all existing mailing lists with a list of their members
+# Save all existing mailing lists with their aliases and a list of their members
 function zimbraBackupServerLists() {
   for list_email in $(zimbraGetLists); do
     local backup_path="${_backups_path}/server/lists/${list_email}"
@@ -310,7 +314,7 @@ function zimbraBackupServerLists() {
 }
 
 # Save the raw list of settings generated by Zimbra for an account
-# The list doesn't look reliable (eg. Sieve filters are truncated when too big),
+# The list doesn't look really reliable (eg. Sieve filters are truncated when too big),
 # and pieces of information are missing
 function zimbraBackupAccountSettingsFile() {
   local email="${1}"
@@ -331,11 +335,18 @@ function zimbraBackupAccountSettings() {
   install -o "${_zimbra_user}" -g "${_zimbra_group}" -d "${backup_path}"
 
   for field in ${fields}; do
-    local backup_file="${backup_path}/${field}"
 
-    log_debug "${email}/Settings: Backup setting <${field}>"
+    # Backup files start with a number to be able to restore them in the same order
+    local backup_file_id=$(printf '%03d' "${_backups_settings_current_id}")
+    local backup_file="${backup_path}/${backup_file_id}-${field}"
+
+    log_debug "Account<${email}>/Settings: Backup setting <${field}>"
     zimbraGetAccountSetting "${email}" "${field}" > "${backup_file}"
     removeFileIfEmpty "${backup_file}"
+
+    if [ -f "${backup_file}" ]; then
+      (( _backups_settings_current_id++ ))
+    fi
   done
 }
 
@@ -355,7 +366,7 @@ function zimbraBackupAccountOtherSettings() {
   zimbraBackupAccountSettings "${email}" "${fields}" others
 }
 
-# Save all the email aliases registred for the account
+# Save all the email aliases associated to the account
 function zimbraBackupAccountSettingAliases() {
   local email="${1}"
   local backup_path="${_backups_path}/accounts/${email}"
@@ -386,7 +397,7 @@ function zimbraBackupAccountSettingSignatures() {
 
     # A signature with no name is possible with older versions of Zimbra
     if [ -z "${name}" ]; then
-      log_warn "${email}/Settings: One signature not saved (no name)"
+      log_warn "Account<${email}>/Settings: One signature not saved (no name)"
     else
 
       # A field zimbraPrefMailSignatureHTML instead of zimbraPrefMailSignature means an HTML signature
@@ -416,17 +427,6 @@ function zimbraBackupAccountSettingSignatures() {
   find "${backup_path}" -maxdepth 0 -type d -empty -exec rmdir '{}' \;
 }
 
-# Save the Sieve filters defined for the account
-function zimbraBackupAccountFilters() {
-  local email="${1}"
-  local backup_path="${_backups_path}/accounts/${email}"
-  local backup_file="${backup_path}/filters"
-
-  install -o "${_zimbra_user}" -g "${_zimbra_group}" -d "${backup_path}"
-  zimbraGetAccountFilters "${email}" > "${backup_file}"
-  removeFileIfEmpty "${backup_file}"
-}
-
 # Save all the data for the account, with folders/mails/tasks/calendar/etc
 # A TAR file is created and the size of the data to backup and to not backup are shown in logs
 function zimbraBackupAccountData() {
@@ -438,14 +438,14 @@ function zimbraBackupAccountData() {
 
   install -o "${_zimbra_user}" -g "${_zimbra_group}" -d "${backup_path}"
 
-  # Create an excluded_data_paths containing the list of folders to no backup in the data
-  # (based on _backups_exclude_data_regexes)
+  # Create an excluded_data_paths containing the list of folders to not backup in the data
+  # (based on -s options given to the script)
   selectAccountDataPathsToExclude "${email}"
 
   # If there are folders to exclude, the size of the data to backup is not the size of the account
   # and a query filter has to be created to ask Zimbra to not select them for the data export
   if [ -s "${backup_path}/excluded_data_paths" ]; then
-    log_debug "${email}/Data: Calculate sizes of what is going to be backuped or excluded"
+    log_debug "Account<${email}>/Data: Calculate sizes of what is going to be backuped or excluded"
 
     local exclude_paths=$(cat "${backup_path}/excluded_data_paths")
     local exclude_paths_count=$(wc -l "${backup_path}/excluded_data_paths" | awk '{ print $1 }')
@@ -458,20 +458,20 @@ function zimbraBackupAccountData() {
       filter_query="${filter_query} and not under:\"${escaped_path}\""
     done < "${backup_path}/excluded_data_paths"
 
-    log_info "${email}/Data: ${exclude_data_size} will be excluded (${exclude_paths_count} folders)"
+    log_info "Account<${email}>/Data: ${exclude_data_size} will be excluded (${exclude_paths_count} folders)"
 
   # No folder to exclude
   else
-    log_debug "${email}/Data: Calculate total size (nothing to exclude)"
+    log_debug "Account<${email}>/Data: Calculate total size (nothing to exclude)"
     backup_data_size=$(zimbraGetAccountDataSize "${email}")
   fi
 
   if [ -n "${filter_query}" ]; then
     filter_query="&query=${filter_query/ and /}"
-    log_debug "${email}/Data: Filter query is <${filter_query}>"
+    log_debug "Account<${email}>/Data: Filter query is <${filter_query}>"
   fi
 
-  log_info "${email}/Data: ${backup_data_size} are going to be backuped"
+  log_info "Account<${email}>/Data: ${backup_data_size} are going to be backuped"
   zimbraGetAccountData "${email}" "${filter_query}" > "${backup_file}"
 }
 
@@ -506,10 +506,11 @@ _backups_include_accounts=
 _backups_exclude_accounts=
 _backups_lock_accounts=false
 _backups_exclude_data_regexes=()
+_backups_settings_current_id=0
 _include_all=true
 _include_server_settings=false
-_include_full_accounts=false
 _include_accounts_settings=false
+_include_accounts_data=false
 _accounts_to_backup=
 _backuping_account=
 
@@ -556,6 +557,17 @@ if [ -n "${_backups_include_accounts}" -a -n "${_backups_exclude_accounts}" ]; t
   exit 1
 fi
 
+if ! ${_include_all} && ! ${_include_accounts_settings} && ! ${_include_accounts_data} &&\
+  [ -n "${_backups_include_accounts}" -o -n "${_backups_exclude_accounts}" ]; then
+  log_err "Options -m and -x are not usable when no account settings and/or data are not intended to be backuped (see -i)"
+  exit 1
+fi
+
+if ! ${_include_all} && ! ${_include_accounts_data} && [ "${#_backups_exclude_data_regexes[@]}" -gt 0 ]; then
+  log_err "Option -s is not usable when the data of the accounts are not intended to be backuped (see -i)"
+  exit 1
+fi
+
 if [ ! -d "${_zimbra_main_path}" -o ! -x "${_zimbra_main_path}" ]; then
   log_err "Zimbra path <${_zimbra_main_path}> doesn't exist, is not a directory or is not executable"
   exit 1
@@ -587,7 +599,7 @@ fi
   zimbraBackupServerLists
 }
 
-(${_include_all} || ${_include_accounts_settings} || ${_include_accounts_settings}) && {
+(${_include_all} || ${_include_accounts_settings} || ${_include_accounts_data}) && {
   if [ -z "${_backups_include_accounts}" ]; then
     log_info "Preparing for accounts backuping"
   fi
@@ -602,34 +614,34 @@ fi
     # Backup accounts
     for email in ${_accounts_to_backup}; do
       if [ -e "${_backups_path}/accounts/${email}" ]; then
-        log_warn "Skip account <${email}> (<${_backups_path}/accounts/${email}/> already exists)"
+        log_warn "Account<${email}>: Has been skipped because <${_backups_path}/accounts/${email}/> already exists"
       else
         resetAccountProcessDuration
 
         _backuping_account="${email}"
-        log_info "Backuping account <${email}>"
+        log_info "Account<${email}>: Backuping account"
 
         ${_backups_lock_accounts} && {
-          log_info "${email}: Locking the account"
+          log_info "Account<${email}>: Locking forever"
           zimbraAccountLock "${email}"
         }
 
         (${_include_all} || ${_include_accounts_settings}) && {
-          log_info "${email}: Backuping settings"
+          log_info "Account<${email}>: Backuping settings"
 
-          log_info "${email}/Settings: Backuping raw settings file"
+          log_info "Account<${email}>/Settings: Backuping raw settings file"
           zimbraBackupAccountSettingsFile "${email}"
 
-          log_info "${email}/Settings: Backuping identity-related settings"
+          log_info "Account<${email}>/Settings: Backuping identity-related settings"
           zimbraBackupAccountIdentitySettings "${email}"
 
-          log_info "${email}/Settings: Backuping aliases"
+          log_info "Account<${email}>/Settings: Backuping aliases"
           zimbraBackupAccountSettingAliases "${email}"
 
-          log_info "${email}/Settings: Backuping signatures"
+          log_info "Account<${email}>/Settings: Backuping signatures"
           zimbraBackupAccountSettingSignatures "${email}"
 
-          log_info "${email}/Settings: Backuping other settings"
+          log_info "Account<${email}>/Settings: Backuping other settings"
           zimbraBackupAccountOtherSettings "${email}" "
             mailSieveScript
             prefMailForwardingAddress
@@ -648,7 +660,7 @@ fi
         }
 
         (${_include_all} || ${_include_accounts_data}) && {
-          log_info "${email}: Backuping data"
+          log_info "Account<${email}>: Backuping data"
           zimbraBackupAccountData "${email}"
         }
 

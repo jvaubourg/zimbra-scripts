@@ -219,6 +219,14 @@ function zimbraGetAccounts() {
   echo -En $(execZimbraCmd cmd | (grep -vE '^(spam\.|ham\.|virus-quarantine\.|galsync[.@])' || true))
 }
 
+function zimbraGetAccountSetting() {
+  local email="${1}"
+  local field="zimbra${2^}"
+  local cmd=(zmprov getAccount "${email}" "${field}")
+
+  execZimbraCmd cmd | sed "1d;\$d;s/^${field}: //"
+}
+
 function zimbraGetAccountAliases() {
   local email="${1}"
 
@@ -237,14 +245,6 @@ function zimbraGetAccountSettingsFile() {
   local cmd=(zmprov getAccount "${email}")
 
   execZimbraCmd cmd
-}
-
-function zimbraGetAccountSetting() {
-  local email="${1}"
-  local field="zimbra${2^}"
-  local cmd=(zmprov getAccount "${email}" "${field}")
-
-  execZimbraCmd cmd | sed "1d;\$d;s/^${field}: //"
 }
 
 function zimbraGetAccountFoldersList() {
@@ -295,6 +295,7 @@ function zimbraIsAccountExisting() {
 
 function zimbraGetVersion() {
   local cmd=(zmcontrol -v)
+
   execZimbraCmd cmd
 }
 
@@ -387,69 +388,6 @@ function zimbraSetAccountLock() {
   execZimbraCmd cmd
 }
 
-function zimbraSetAccountCatchAll() {
-  local email="${1}"
-  local at_domain="${2}"
-  local cmd=(zmprov modifyAccount "${email}" zimbraMailCatchAllAddress "${at_domain}")
-
-  execZimbraCmd cmd
-}
-
-function zimbraSetAccountForwarding() {
-  local email="${1}"
-  local to_email="${2}"
-  local keep_copies="${3}"
-
-  local cmd=(zmprov modifyAccount "${email}" zimbraPrefMailForwardingAddress "${to_email}")
-  execZimbraCmd cmd
-
-  if ! ${keep_copies}; then
-    local cmd=(zmprov modifyAccount "${email}" zimbraPrefMailLocalDeliveryDisabled TRUE)
-    execZimbraCmd cmd
-  fi
-}
-
-function zimbraSetAccountOutOfOffice() {
-  local email="${1}"
-  local replyEnabled="${2}"
-  local cacheDuration="${3}"
-  local externalReply="${4}"
-  local externalReplyEnabled="${5}"
-  local fromDate="${6}"
-  local reply="${7}"
-  local replyEnabled="${8}"
-  local statusAlertOnLogin="${9}"
-  local untilDate="${10}"
-  local cmd=
-
-  cmd=(zmprov modifyAccount "${email}" zimbraFeatureOutOfOfficeReplyEnabled "${replyEnabled}")
-  execZimbraCmd cmd
-
-  cmd=(zmprov modifyAccount "${email}" zimbraPrefOutOfOfficeCacheDuration "${cacheDuration}")
-  execZimbraCmd cmd
-
-  cmd=(zmprov modifyAccount "${email}" zimbraPrefOutOfOfficeExternalReply "${externalReply}")
-  execZimbraCmd cmd
-
-  cmd=(zmprov modifyAccount "${email}" zimbraPrefOutOfOfficeExternalReplyEnabled "${externalReplyEnabled}")
-  execZimbraCmd cmd
-
-  cmd=(zmprov modifyAccount "${email}" zimbraPrefOutOfOfficeFromDate "${fromDate}")
-  execZimbraCmd cmd
-
-  cmd=(zmprov modifyAccount "${email}" zimbraPrefOutOfOfficeReply "${reply}")
-  execZimbraCmd cmd
-
-  cmd=(zmprov modifyAccount "${email}" zimbraPrefOutOfOfficeReplyEnabled "${replyEnabled}")
-  execZimbraCmd cmd
-
-  cmd=(zmprov modifyAccount "${email}" zimbraPrefOutOfOfficeStatusAlertOnLogin "${statusAlertOnLogin}")
-  execZimbraCmd cmd
-
-  cmd=(zmprov modifyAccount "${email}" zimbraPrefOutOfOfficeUntilDate "${untilDate}")
-  execZimbraCmd cmd
-}
-
 function zimbraSetAccountAlias() {
   local email="${1}"
   local alias="${2}"
@@ -472,6 +410,15 @@ function zimbraSetAccountSignature() {
 
   cmd=(zmprov createSignature "${email}" "${name}" "${field}" "${content}")
   execZimbraCmd cmd | hideReturnedId
+}
+
+function zimbraSetAccountSetting() {
+  local email="${1}"
+  local field="${2}"
+  local value="${3}"
+  local cmd=(zmprov modifyAccount "${email}" "${field}" "${value}")
+
+  execZimbraCmd cmd
 }
 
 function zimbraSetAccountData() {
