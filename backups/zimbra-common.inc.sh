@@ -41,13 +41,6 @@ function trap_exit() {
 
   trap - EXIT TERM ERR INT
 
-  if [ -n "${zmprov_PID-}" ]; then
-    log_debug "Close the fast zmprov prompt"
-
-    echo exit >&"${zmprov[1]}"
-    wait "${zmprov_PID}"
-  fi
-
   if [ "${status}" -ne 0 ]; then
     if [ "${line}" -gt 1 ]; then
       log_err "There was an unexpected interruption on line ${line}"
@@ -120,13 +113,13 @@ function fastZmprovCmd() {
     mkfifo "${pipe_file}"
 
     tail -f "${cmd_file}" > "${pipe_file}" &
-    _zmprov_pid_cmd=$!
+    _zmprov_pid_cmd="${!}"
 
     sudo -u "${_zimbra_user}" env "${path}" stdbuf -o0 -e0 zmprov --ldap < "${pipe_file}" &> "${out_file}" &
-    _zmprov_pid_out=$!
+    _zmprov_pid_out="${!}"
 
-    # Drop the first prompt line once zmprov is started
-    read < "${out_file}"
+    # Wait until the prompt line is proposed
+    while [ "$(wc -c "${out_file}")" -lt 5 ]; do sleep 1; done
   fi
 
   # Wipe the output
