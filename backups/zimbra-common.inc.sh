@@ -38,7 +38,7 @@ function trap_exit() {
 
   trap - EXIT TERM ERR INT
 
-  if [ -n "${zmprov_PID}" ]; then
+  if [ -n "${zmprov_PID-}" ]; then
     log_debug "Close the fast zmprov prompt"
 
     echo exit >&"${zmprov[1]}"
@@ -93,7 +93,7 @@ function fastZmprovCmd() {
   # Depends on the cmd variable like execZimbraCmd
 
   # Start the prompt as a coprocess
-  if [ -z "${zmprov_PID}" ]; then
+  if [ -z "${zmprov_PID-}" ]; then
     coproc zmprov { sudo -u "${_zimbra_user}" env "${path}" stdbuf -o0 -e0 zmprov --ldap; }
   fi
 
