@@ -95,7 +95,7 @@ function execFastZmprovCmd() {
 
   # Start the prompt as a coprocess
   if [ -z "${zmprov_PID-}" ]; then
-    coproc zmprov { sudo -u "${_zimbra_user}" env "${path}" stdbuf -o0 -e0 zmprov --ldap; }
+    coproc zmprov { sudo -u "${_zimbra_user}" env "${path}" stdbuf -o0 -e0 zmprov --ldap 2>&1; }
     exec 3<&${zmprov[0]} 4>&${zmprov[1]}
   fi
 
@@ -108,15 +108,22 @@ function execFastZmprovCmd() {
   printf '\n\n' >&4
 
   # Read the output until meeting the empty prompt line
+  local error_detected=false
   while read line; do
     if [[ "${line}" =~ ^prov\>$ ]]; then
       break
+
+    elif [[ "${line}" =~ ^ERROR:\ .+ ]]; then
+      error_detected=true
+      echo "${line}" >&2
 
     # Do not echo the command line
     elif ! [[ "${line}" =~ ^prov\>.+ ]]; then
       echo "${line}"
     fi
   done <&3
+
+  ! ${error_detected}
 }
 
 function execZimbraCmd() {
@@ -387,8 +394,8 @@ function zimbraSetListAlias() {
 function zimbraCreateAccount() {
   local email="${1}"
   local cn="${2}"
-  local givenName="${3}"
-  local displayName="${4}"
+  local givenName="${3:-${cn}}"
+  local displayName="${4:-${cn}}"
   local password="${5}"
   local cmd=(fastzmprov createAccount "${email}" "${password}" cn "${cn}" displayName "${displayName}" givenName "${givenName}" zimbraPrefFromDisplay "${displayName}")
 
@@ -412,7 +419,7 @@ function zimbraSetPasswordMustChange() {
 
 function zimbraRemoveAccount() {
   local email="${1}"
-  local cmd=(fastzmprov deleteAccount "${email}")
+  local cmd=(zmprov --ldap deleteAccount "${email}")
 
   execZimbraCmd cmd
 }
