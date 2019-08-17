@@ -336,7 +336,7 @@ function zimbraBackupAccountIdentitySettings() {
   for field in ${fields}; do
     local backup_file="${backup_path}/${field}"
 
-    log_debug "Account<${email}>/Settings: Backup identity setting <${field}>"
+    log_debug "Account<${email}>/Settings: Backup setting <${field}>"
     zimbraGetAccountSetting "${email}" "${field}" > "${backup_file}"
     removeFileIfEmpty "${backup_file}"
   done
@@ -356,7 +356,7 @@ function zimbraBackupAccountOtherSettings() {
     local backup_file_id=$(printf '%03d' "${_backups_settings_current_id}")
     local backup_file="${backup_path}/${backup_file_id}-${field}"
 
-    log_debug "Account<${email}>/Settings: Backup other setting <${field}>"
+    log_debug "Account<${email}>/Settings: Backup setting <${field}>"
     zimbraGetAccountSetting "${email}" "${field}" > "${backup_file}"
     removeFileIfEmpty "${backup_file}"
 

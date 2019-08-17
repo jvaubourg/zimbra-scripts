@@ -38,6 +38,13 @@ function trap_exit() {
 
   trap - EXIT TERM ERR INT
 
+  if [ -n "${zmprov_PID}" ]; then
+    log_debug "Close the fast zmprov prompt"
+
+    echo exit >&"${zmprov[1]}"
+    wait "${zmprov_PID}"
+  fi
+
   if [ "${status}" -ne 0 ]; then
     if [ "${line}" -gt 1 ]; then
       log_err "There was an unexpected interruption on line ${line}"
@@ -80,6 +87,36 @@ function setZimbraPermissions() {
   chown -R "${_zimbra_user}:${_zimbra_group}" "${folder}"
 }
 
+# Open a prompt for zmprov that can be feed through stdin
+# This is way faster than calling the zmprov command every time
+function fastZmprovCmd() {
+  # Depends on the cmd variable like execZimbraCmd
+
+  # Start the prompt as a coprocess
+  if [ -z "${zmprov_PID}" ]; then
+    coproc zmprov { sudo -u "${_zimbra_user}" env "${path}" stdbuf -o0 -e0 zmprov --ldap; }
+  fi
+
+  # Feed the prompt with a command
+  printf '%q ' "${cmd[@]:2}" >&"${zmprov[1]}"
+
+  # The first new-line char commits the current command
+  # The second one commits an empty command to have an empty prompt line just after
+  # the end of the output
+  printf '\n\n' >&"${zmprov[1]}"
+
+  # Read the output until meeting the empty prompt line
+  while read line; do
+    if [[ "${line}" =~ ^prov\>$ ]]; then
+      break
+
+    # Do not echo the command line
+    elif ! [[ "${line}" =~ ^prov\>.+ ]]; then
+      echo "${line}"
+    fi
+  done <&"${zmprov[0]}"
+}
+
 function execZimbraCmd() {
   # References (namerefs) are not supported by Bash prior to 4.4 (CentOS currently uses 4.3)
   # For now we expect that the parent function defined a cmd variable
@@ -91,8 +128,14 @@ function execZimbraCmd() {
     log_debug "CMD: ${cmd[*]}"
   fi
 
-  # Using sudo instead of su -c and an array instead of a string prevent code injections
-  sudo -u "${_zimbra_user}" env "${path}" "${cmd[@]}"
+  # Fast zmprov
+  if [ "${cmd[0]}" = zmprov ]; then
+    fastZmprovCmd
+
+  else
+    # Using sudo instead of su -c and an array instead of a string prevent code injections
+    sudo -u "${_zimbra_user}" env "${path}" "${cmd[@]}"
+  fi
 }
 
 # Hides IDs returned by Zimbra when creating an object
@@ -207,7 +250,7 @@ function zimbraGetListMembers() {
 
 function zimbraGetListAliases() {
   local list_email="${1}"
-  local cmd=(zmprov --ldap getDistributionList "${list_email}")
+  local cmd=(zmprov --ldap getDistributionList "${list_email}" zimbraMailAlias)
 
   execZimbraCmd cmd | awk '/^zimbraMailAlias:/ { print $2 }'
 }
