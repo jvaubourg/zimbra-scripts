@@ -9,12 +9,15 @@
 
 # Default values (can be changed with parent script options)
 _log_id=UNKNOWN
-_backups_path='/tmp/zimbra_backups'
-_zimbra_main_path='/opt/zimbra'
-_zimbra_user='zimbra'
-_zimbra_group='zimbra'
+_backups_path=/tmp/zimbra_backups
+_zimbra_main_path=/opt/zimbra
+_zimbra_user=zimbra
+_zimbra_group=zimbra
 _existing_accounts=
 _process_timer=
+_zmprov_folder_tmp=/tmp/.zimbra-common_zmprov
+_zmprov_pid_out=0
+_zmprov_pid_cmd=0
 _debug_mode=0
 
 # Will be filled by zimbraGetMainDomain
@@ -52,6 +55,17 @@ function trap_exit() {
 
     log_err "Process aborted"
     cleanFailedProcess
+
+    # Clean the fast zmprov processes
+    if [ "${_zmprov_pid_out}" -gt 0 ]; then
+      kill -9 "${_zmprov_pid_out}" || true
+    fi
+
+    if [ "${_zmprov_pid_cmd}" -gt 0 ]; then
+      kill -9 "${_zmprov_pid_cmd}" || true
+    fi
+
+    rm -rf "${_zmprov_folder_tmp}"
   else
     log_debug "Process done"
   fi
@@ -91,19 +105,40 @@ function setZimbraPermissions() {
 # This is way faster than calling the zmprov command every time
 function fastZmprovCmd() {
   # Depends on the cmd variable like execZimbraCmd
+  local pipe_file="${_zmprov_folder_tmp}/pipe"
+  local cmd_file="${_zmprov_folder_tmp}/cmd"
+  local out_file="${_zmprov_folder_tmp}/out"
 
   # Start the prompt as a coprocess
-  if [ -z "${zmprov_PID-}" ]; then
-    coproc zmprov { sudo -u "${_zimbra_user}" env "${path}" stdbuf -o0 -e0 zmprov --ldap; }
+  # (using a named pipe because Bash coprocesses have too much restrictions)
+  if [ "${_zmprov_pid_cmd}" -eq 0 ]; then
+    local path="PATH=/sbin:/bin:/usr/sbin:/usr/bin:${_zimbra_main_path}/bin:${_zimbra_main_path}/libexec"
+
+    rm -rf "${_zmprov_folder_tmp}"
+    mkdir -p "${_zmprov_folder_tmp}"
+    touch "${cmd_file}" "${out_file}"
+    mkfifo "${pipe_file}"
+
+    tail -f "${cmd_file}" > "${pipe_file}" &
+    _zmprov_pid_cmd=$!
+
+    sudo -u "${_zimbra_user}" env "${path}" stdbuf -o0 -e0 zmprov --ldap < "${pipe_file}" &> "${out_file}" &
+    _zmprov_pid_out=$!
+
+    # Drop the first prompt line once zmprov is started
+    read < "${out_file}"
   fi
 
+  # Wipe the output
+  :> "${out_file}"
+
   # Feed the prompt with a command
-  printf '%q ' "${cmd[@]:2}" >&"${zmprov[1]}"
+  printf '%q ' "${cmd[@]:2}" >> "${cmd_file}"
 
   # The first new-line char commits the current command
   # The second one commits an empty command to have an empty prompt line just after
   # the end of the output
-  printf '\n\n' >&"${zmprov[1]}"
+  printf '\n\n' >> "${cmd_file}"
 
   # Read the output until meeting the empty prompt line
   while read line; do
@@ -114,7 +149,7 @@ function fastZmprovCmd() {
     elif ! [[ "${line}" =~ ^prov\>.+ ]]; then
       echo "${line}"
     fi
-  done <&"${zmprov[0]}"
+  done < "${out_file}"
 }
 
 function execZimbraCmd() {
