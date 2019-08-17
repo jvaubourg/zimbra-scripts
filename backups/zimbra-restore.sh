@@ -501,7 +501,7 @@ while getopts 'm:x:frb:p:u:i:d:h' opt; do
            server_settings) _include_server_settings=true ;;
            accounts_settings) _include_accounts_settings=true ;;
            accounts_data) _include_accounts_data=true ;;
-           *) log_err "Value <${subopt}> not supported by option -e"; exit 1 ;;
+           *) log_err "Value <${subopt}> not supported by option -i"; exit 1 ;;
          esac
        done ;;
     d) _debug_mode="${OPTARG}" ;;
@@ -550,8 +550,6 @@ _zimbra_install_domain=$(zimbraGetMainDomain)
 log_debug "Zimbra main domain is <${_zimbra_install_domain}>"
 
 (${_include_all} || ${_include_server_settings}) && {
-  log_info "Restoring server-side settings"
-
   log_info "Server/Settings: Restoring domains"
   zimbraRestoreDomains
 

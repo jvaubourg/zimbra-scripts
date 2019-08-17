@@ -221,7 +221,7 @@ function zimbraGetAccounts() {
 
 function zimbraGetAccountSetting() {
   local email="${1}"
-  local field="zimbra${2^}"
+  local field="${2}"
   local cmd=(zmprov getAccount "${email}" "${field}")
 
   execZimbraCmd cmd | sed "1d;\$d;s/^${field}: //"

@@ -325,12 +325,28 @@ function zimbraBackupAccountSettingsFile() {
   zimbraGetAccountSettingsFile "${email}" > "${backup_file}"
 }
 
-# Save a list of settings for the account
-function zimbraBackupAccountSettings() {
+# Save account identity-related settings
+function zimbraBackupAccountIdentitySettings() {
+  local email="${1}"
+  local fields="cn givenName displayName userPassword"
+  local backup_path="${_backups_path}/accounts/${email}/settings/identity"
+
+  install -o "${_zimbra_user}" -g "${_zimbra_group}" -d "${backup_path}"
+
+  for field in ${fields}; do
+    local backup_file="${backup_path}/${field}"
+
+    log_debug "Account<${email}>/Settings: Backup identity setting <${field}>"
+    zimbraGetAccountSetting "${email}" "${field}" > "${backup_file}"
+    removeFileIfEmpty "${backup_file}"
+  done
+}
+
+# Save account user-defined settings for the account
+function zimbraBackupAccountOtherSettings() {
   local email="${1}"
   local fields="${2}"
-  local folder="${3}"
-  local backup_path="${_backups_path}/accounts/${email}/settings/${folder}"
+  local backup_path="${_backups_path}/accounts/${email}/settings/others"
 
   install -o "${_zimbra_user}" -g "${_zimbra_group}" -d "${backup_path}"
 
@@ -340,7 +356,7 @@ function zimbraBackupAccountSettings() {
     local backup_file_id=$(printf '%03d' "${_backups_settings_current_id}")
     local backup_file="${backup_path}/${backup_file_id}-${field}"
 
-    log_debug "Account<${email}>/Settings: Backup setting <${field}>"
+    log_debug "Account<${email}>/Settings: Backup other setting <${field}>"
     zimbraGetAccountSetting "${email}" "${field}" > "${backup_file}"
     removeFileIfEmpty "${backup_file}"
 
@@ -348,22 +364,6 @@ function zimbraBackupAccountSettings() {
       (( _backups_settings_current_id++ ))
     fi
   done
-}
-
-# Save account identity-related settings
-function zimbraBackupAccountIdentitySettings() {
-  local email="${1}"
-  local fields="cn givenName displayName userPassword"
-
-  zimbraBackupAccountSettings "${email}" "${fields}" identity
-}
-
-# Save account user-defined settings for the account
-function zimbraBackupAccountOtherSettings() {
-  local email="${1}"
-  local fields="${2}"
-
-  zimbraBackupAccountSettings "${email}" "${fields}" others
 }
 
 # Save all the email aliases associated to the account
@@ -539,7 +539,7 @@ while getopts 'm:x:s:lb:p:u:g:i:d:h' opt; do
            server_settings) _include_server_settings=true ;;
            accounts_settings) _include_accounts_settings=true ;;
            accounts_data) _include_accounts_data=true ;;
-           *) log_err "Value <${subopt}> not supported by option -e"; exit 1 ;;
+           *) log_err "Value <${subopt}> not supported by option -i"; exit 1 ;;
          esac
        done ;;
     d) _debug_mode="${OPTARG}" ;;
@@ -584,8 +584,6 @@ fi
 ###################
 
 (${_include_all} || ${_include_server_settings}) && {
-  log_info "Backuping server-side settings"
-
   log_info "Server/Settings: Backuping admins list"
   zimbraBackupServerAdmins
 
@@ -619,7 +617,6 @@ fi
         resetAccountProcessDuration
 
         _backuping_account="${email}"
-        log_info "Account<${email}>: Backuping account"
 
         ${_backups_lock_accounts} && {
           log_info "Account<${email}>: Locking forever"
@@ -643,20 +640,20 @@ fi
 
           log_info "Account<${email}>/Settings: Backuping other settings"
           zimbraBackupAccountOtherSettings "${email}" "
-            mailSieveScript
-            prefMailForwardingAddress
-            mailCatchAllAddress
-            prefMailForwardingAddress
-            prefMailLocalDeliveryDisabled
-            featureOutOfOfficeReplyEnabled
-            prefOutOfOfficeCacheDuration
-            prefOutOfOfficeExternalReply
-            prefOutOfOfficeExternalReplyEnabled
-            prefOutOfOfficeFromDate
-            prefOutOfOfficeReply
-            prefOutOfOfficeReplyEnabled
-            prefOutOfOfficeStatusAlertOnLogin
-            prefOutOfOfficeUntilDate"
+            zimbraMailSieveScript
+            zimbraPrefMailForwardingAddress
+            zimbraMailCatchAllAddress
+            zimbraPrefMailForwardingAddress
+            zimbraPrefMailLocalDeliveryDisabled
+            zimbraFeatureOutOfOfficeReplyEnabled
+            zimbraPrefOutOfOfficeCacheDuration
+            zimbraPrefOutOfOfficeExternalReply
+            zimbraPrefOutOfOfficeExternalReplyEnabled
+            zimbraPrefOutOfOfficeFromDate
+            zimbraPrefOutOfOfficeReply
+            zimbraPrefOutOfOfficeReplyEnabled
+            zimbraPrefOutOfOfficeStatusAlertOnLogin
+            zimbraPrefOutOfOfficeUntilDate"
         }
 
         (${_include_all} || ${_include_accounts_data}) && {
