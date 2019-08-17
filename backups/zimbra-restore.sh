@@ -147,7 +147,7 @@ function cleanFailedProcess() {
 # the backuped data of the account
 function getAccountDataFileSize() {
   local email="${1}"
-  local backup_path="${_backups_path}/accounts/${email}"
+  local backup_path="${_backups_path}/accounts/${email}/data"
   local backup_file="${backup_path}/data.tar"
 
   printf "%s" "$(du -sh "${backup_file}" | awk '{ print $1 }')B"
@@ -423,7 +423,7 @@ function zimbraRestoreAccountOtherSettings() {
 # Restore all the data for the account, with folders/mails/tasks/calendar/etc
 function zimbraRestoreAccountData() {
   local email="${1}"
-  local backup_path="${_backups_path}/accounts/${email}"
+  local backup_path="${_backups_path}/accounts/${email}/data"
   local backup_file="${backup_path}/data.tar"
 
   checkBackupedFileAccess "${backup_file}"
@@ -439,7 +439,7 @@ function zimbraRestoreAccountData() {
 # Obviously, the folders are now empty but ready to be used again with the Siever filters
 function zimbraRestoreAccountDataExcludedPaths() {
   local email="${1}"
-  local backup_path="${_backups_path}/accounts/${email}"
+  local backup_path="${_backups_path}/accounts/${email}/data"
   local backup_file="${backup_path}/excluded_data_paths_full"
 
   checkBackupedFileAccess "${backup_file}"

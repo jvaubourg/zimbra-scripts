@@ -301,12 +301,12 @@ function zimbraBackupServerLists() {
 
     install -o "${_zimbra_user}" -g "${_zimbra_group}" -d "${backup_path}"
 
-    log_debug "Server/Settings: Backup members of list ${list_email}"
+    log_debug "Server/Settings/List<${list_email}>: Backup members"
     backup_file="${backup_path}/members"
     zimbraGetListMembers "${list_email}" | (grep -F @ | grep -v '^#' || true) > "${backup_file}"
     removeFileIfEmpty "${backup_file}"
 
-    log_debug "Server/Settings: Backup aliases of list ${list_email}"
+    log_debug "Server/Settings/List<${list_email}>: Backup aliases"
     backup_file="${backup_path}/aliases"
     zimbraGetListAliases "${list_email}" | (grep -F @ | grep -v '^#' || true) > "${backup_file}"
     removeFileIfEmpty "${backup_file}"

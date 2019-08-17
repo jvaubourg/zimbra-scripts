@@ -90,7 +90,7 @@ function setZimbraPermissions() {
 
 # Open a prompt for zmprov that can be feed through stdin
 # This is way faster than calling the zmprov command every time
-function fastZmprovCmd() {
+function execFastZmprovCmd() {
   # Depends on the cmd variable like execZimbraCmd
 
   # Start the prompt as a coprocess
@@ -100,7 +100,7 @@ function fastZmprovCmd() {
   fi
 
   # Feed the prompt with a command
-  printf '%q ' "${cmd[@]:2}" >&4
+  printf '%q ' "${cmd[@]:1}" >&4
 
   # The first new-line char commits the current command
   # The second one commits an empty command to have an empty prompt line just after
@@ -130,10 +130,8 @@ function execZimbraCmd() {
     log_debug "CMD: ${cmd[*]}"
   fi
 
-  # Fast zmprov
-  if [ "${cmd[0]}" = zmprov ]; then
-    fastZmprovCmd
-
+  if [ "${cmd[0]}" = fastzmprov ]; then
+    execFastZmprovCmd
   else
     # Using sudo instead of su -c and an array instead of a string prevent code injections
     sudo -u "${_zimbra_user}" env "${path}" "${cmd[@]}"
@@ -213,19 +211,19 @@ function selectAccountsToRestore() {
 ##
 
 function zimbraGetMainDomain() {
-  local cmd=(zmprov --ldap getConfig zimbraDefaultDomainName)
+  local cmd=(fastzmprov getConfig zimbraDefaultDomainName)
 
   execZimbraCmd cmd | sed "s/^zimbraDefaultDomainName: //"
 }
 
 function zimbraGetAdminAccounts() {
-  local cmd=(zmprov --ldap getAllAdminAccounts)
+  local cmd=(fastzmprov getAllAdminAccounts)
 
   execZimbraCmd cmd
 }
 
 function zimbraGetDomains() {
-  local cmd=(zmprov --ldap getAllDomains)
+  local cmd=(fastzmprov getAllDomains)
 
   execZimbraCmd cmd
 }
@@ -238,27 +236,27 @@ function zimbraGetDkimInfo() {
 }
 
 function zimbraGetLists() {
-  local cmd=(zmprov --ldap getAllDistributionLists)
+  local cmd=(fastzmprov getAllDistributionLists)
 
   execZimbraCmd cmd
 }
 
 function zimbraGetListMembers() {
   local list_email="${1}"
-  local cmd=(zmprov --ldap getDistributionListMembership "${list_email}")
+  local cmd=(fastzmprov getDistributionListMembership "${list_email}")
 
   execZimbraCmd cmd
 }
 
 function zimbraGetListAliases() {
   local list_email="${1}"
-  local cmd=(zmprov --ldap getDistributionList "${list_email}" zimbraMailAlias)
+  local cmd=(fastzmprov getDistributionList "${list_email}" zimbraMailAlias)
 
   execZimbraCmd cmd | awk '/^zimbraMailAlias:/ { print $2 }'
 }
 
 function zimbraGetAccounts() {
-  local cmd=(zmprov --ldap getAllAccounts)
+  local cmd=(fastzmprov getAllAccounts)
 
   # echo is used to remove return chars
   echo -En $(execZimbraCmd cmd | (grep -vE '^(spam\.|ham\.|virus-quarantine\.|galsync[.@])' || true))
@@ -267,7 +265,7 @@ function zimbraGetAccounts() {
 function zimbraGetAccountSetting() {
   local email="${1}"
   local field="${2}"
-  local cmd=(zmprov --ldap getAccount "${email}" "${field}")
+  local cmd=(fastzmprov getAccount "${email}" "${field}")
 
   execZimbraCmd cmd | sed "1d;\$d;s/^${field}: //"
 }
@@ -280,14 +278,14 @@ function zimbraGetAccountAliases() {
 
 function zimbraGetAccountSignatures() {
   local email="${1}"
-  local cmd=(zmprov --ldap getSignatures "${email}")
+  local cmd=(fastzmprov getSignatures "${email}")
 
   execZimbraCmd cmd
 }
 
 function zimbraGetAccountSettingsFile() {
   local email="${1}"
-  local cmd=(zmprov --ldap getAccount "${email}")
+  local cmd=(fastzmprov getAccount "${email}")
 
   execZimbraCmd cmd
 }
@@ -351,7 +349,7 @@ function zimbraGetVersion() {
 
 function zimbraCreateDomain() {
   local domain="${1}"
-  local cmd=(zmprov --ldap createDomain "${domain}" zimbraAuthMech zimbra)
+  local cmd=(fastzmprov createDomain "${domain}" zimbraAuthMech zimbra)
 
   execZimbraCmd cmd | hideReturnedId
 }
@@ -365,7 +363,7 @@ function zimbraCreateDkim() {
 
 function zimbraCreateList() {
   local list_email="${1}"
-  local cmd=(zmprov --ldap createDistributionList "${list_email}")
+  local cmd=(fastzmprov createDistributionList "${list_email}")
 
   execZimbraCmd cmd | hideReturnedId
 }
@@ -373,7 +371,7 @@ function zimbraCreateList() {
 function zimbraSetListMember() {
   local list_email="${1}"
   local member_email="${2}"
-  local cmd=(zmprov --ldap addDistributionListMember "${list_email}" "${member_email}")
+  local cmd=(fastzmprov addDistributionListMember "${list_email}" "${member_email}")
 
   execZimbraCmd cmd
 }
@@ -381,7 +379,7 @@ function zimbraSetListMember() {
 function zimbraSetListAlias() {
   local list_email="${1}"
   local alias_email="${2}"
-  local cmd=(zmprov --ldap addDistributionListAlias "${list_email}" "${alias_email}")
+  local cmd=(fastzmprov addDistributionListAlias "${list_email}" "${alias_email}")
 
   execZimbraCmd cmd
 }
@@ -392,7 +390,7 @@ function zimbraCreateAccount() {
   local givenName="${3}"
   local displayName="${4}"
   local password="${5}"
-  local cmd=(zmprov --ldap createAccount "${email}" "${password}" cn "${cn}" displayName "${displayName}" givenName "${givenName}" zimbraPrefFromDisplay "${displayName}")
+  local cmd=(fastzmprov createAccount "${email}" "${password}" cn "${cn}" displayName "${displayName}" givenName "${givenName}" zimbraPrefFromDisplay "${displayName}")
 
   execZimbraCmd cmd | hideReturnedId
 }
@@ -400,21 +398,21 @@ function zimbraCreateAccount() {
 function zimbraUpdateAccountPassword() {
   local email="${1}"
   local hash_password="${2}"
-  local cmd=(zmprov --ldap modifyAccount "${email}" userPassword "${hash_password}")
+  local cmd=(fastzmprov modifyAccount "${email}" userPassword "${hash_password}")
 
   execZimbraCmd cmd
 }
 
 function zimbraSetPasswordMustChange() {
   local email="${1}"
-  local cmd=(zmprov --ldap modifyAccount "${email}" zimbraPasswordMustChange TRUE)
+  local cmd=(fastzmprov modifyAccount "${email}" zimbraPasswordMustChange TRUE)
 
   execZimbraCmd cmd
 }
 
 function zimbraRemoveAccount() {
   local email="${1}"
-  local cmd=(zmprov --ldap deleteAccount "${email}")
+  local cmd=(fastzmprov deleteAccount "${email}")
 
   execZimbraCmd cmd
 }
@@ -429,14 +427,14 @@ function zimbraSetAccountLock() {
     status=pending
   fi
 
-  cmd=(zmprov --ldap modifyAccount "${email}" zimbraAccountStatus "${status}")
+  cmd=(fastzmprov modifyAccount "${email}" zimbraAccountStatus "${status}")
   execZimbraCmd cmd
 }
 
 function zimbraSetAccountAlias() {
   local email="${1}"
   local alias="${2}"
-  local cmd=(zmprov --ldap addAccountAlias "${email}" "${alias}")
+  local cmd=(fastzmprov addAccountAlias "${email}" "${alias}")
 
   execZimbraCmd cmd
 }
@@ -453,7 +451,7 @@ function zimbraSetAccountSignature() {
     field=zimbraPrefMailSignatureHTML
   fi
 
-  cmd=(zmprov --ldap createSignature "${email}" "${name}" "${field}" "${content}")
+  cmd=(fastzmprov createSignature "${email}" "${name}" "${field}" "${content}")
   execZimbraCmd cmd | hideReturnedId
 }
 
@@ -461,7 +459,7 @@ function zimbraSetAccountSetting() {
   local email="${1}"
   local field="${2}"
   local value="${3}"
-  local cmd=(zmprov --ldap modifyAccount "${email}" "${field}" "${value}")
+  local cmd=(fastzmprov modifyAccount "${email}" "${field}" "${value}")
 
   execZimbraCmd cmd
 }
