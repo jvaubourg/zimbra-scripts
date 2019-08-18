@@ -146,7 +146,7 @@ function exit_usage() {
         (using the -z passphrase) and the users' repos will be created in :users/
         (when no Backup Config File already exists for them in /opt/zimbra_borgackup/configs/)
 
-        zimbra-borg-backup.sh\
+        zimbra-borg-backup.sh\\
           -a mailbackup@mybackups.example.com:main\\
           -z 'JRX2jVkRDpH6+OQ9hw/7sWn4F0OBps42I2TQ6DvRIgI='\\
           -k /root/borg/sshkey.priv\\
@@ -159,7 +159,7 @@ function exit_usage() {
         on mybackups.example.com (using sshkey.priv and port 2222) in users/<hash>,
         and a Backup Config File will be created in /opt/zimbra_borgackup/configs/
 
-        zimbra-borg-backup.sh\
+        zimbra-borg-backup.sh\\
           -a mailbackup@mybackups.example.com:main\\
           -z 'JRX2jVkRDpH6+OQ9hw/7sWn4F0OBps42I2TQ6DvRIgI='\\
           -k /root/borg/sshkey.priv\\
