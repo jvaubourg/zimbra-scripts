@@ -641,7 +641,6 @@ fi
           log_info "${email}/Settings: Backuping other settings"
           zimbraBackupAccountOtherSettings "${email}" "
             zimbraMailSieveScript
-            zimbraPrefMailForwardingAddress
             zimbraMailCatchAllAddress
             zimbraPrefMailForwardingAddress
             zimbraPrefMailLocalDeliveryDisabled
