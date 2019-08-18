@@ -419,7 +419,7 @@ function zimbraSetPasswordMustChange() {
 
 function zimbraRemoveAccount() {
   local email="${1}"
-  local cmd=(zmprov --ldap deleteAccount "${email}")
+  local cmd=(zmprov deleteAccount "${email}")
 
   execZimbraCmd cmd
 }

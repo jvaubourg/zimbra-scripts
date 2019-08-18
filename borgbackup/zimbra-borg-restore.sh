@@ -290,7 +290,7 @@ function borgRestoreAccount() {
   if [ -z "${date_archive}" ]; then
 
     # Mount the account repository
-    borg mount ${_borg_debug_mode} --last 1 "${borg_repo}" "${mount_folder}" > /dev/null || {
+    borg mount ${_borg_debug_mode} -o allow_other --last 1 "${borg_repo}" "${mount_folder}" > /dev/null || {
       log_err "${email}: Unable to mount the Borg archive (last one)"
       log_err "${email}: Account *NOT* restored"
 
@@ -308,7 +308,7 @@ function borgRestoreAccount() {
   else
 
     # Mount the account repository
-    borg mount ${_borg_debug_mode} --last 1 "${borg_repo}" "${mount_folder}" > /dev/null || {
+    borg mount ${_borg_debug_mode} -o allow_other --last 1 "${borg_repo}" "${mount_folder}" > /dev/null || {
       log_err "${email}: Unable to mount the Borg archive (${date_archive})"
       log_err "${email}: Account *NOT* restored"
 
