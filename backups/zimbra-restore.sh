@@ -21,21 +21,21 @@ function exit_usage() {
   cat <<USAGE
 
   ACCOUNTS
-    Already existing accounts in Zimbra will be skipped with a warning.
+    Already existing accounts in Zimbra will be skipped with a warning, except when restoring only data (see -i)
 
     -m email
       Email of an account to include in the restore
-      Repeat this option as many times as necessary to restore more than only one account
       Cannot be used with -x at the same time
       [Default] All accounts
       [Example] -m foo@example.com -m bar@example.org
+      [Example] -m 'foo@example.com bar@example.org'
 
     -x email
       Email of an account to exclude of the restore
-      Repeat this option as many times as necessary to restore more than only one account
       Cannot be used with -m at the same time
       [Default] No exclusion
       [Example] -x foo@example.com -x bar@example.org
+      [Example] -x 'foo@example.com bar@example.org'
 
     -f
       Force users to change their password next time they connect after the restore
@@ -58,31 +58,24 @@ function exit_usage() {
       Zimbra UNIX user
       [Default] ${_zimbra_user}
 
-  EXCLUSIONS
+  PARTIAL BACKUPS
 
-    -e ASSET
-      Do a partial restore, by excluding some settings/data
-      Repeat this option as many times as necessary to exclude more than only one asset
-      [Default] Everything is restored
-      [Example] -e domains -e data
+    -i ASSET
+      Do a partial restore by selecting groups of settings/data
+      [Default] Everything available in the backup is restored
+
+      [Example] Restore full server without user data:
+        -i server_settings -i accounts_settings
+      [Example] Restore accounts on an already configured server:
+        -i accounts_settings -i accounts_data
 
       ASSET can be:
-        domains
-          Do not restore domains
-        lists
-          Do not restore mailing lists
-        aliases
-          Do not restore email aliases
-        signatures
-          Do not restore registred signatures
-        filters
-          Do not restore sieve filters
-        accounts
-          Do not restore any accounts at all
-        data
-          Do not restore contents of the mailboxes (ie. folders/emails/contacts/calendar/briefcase/tasks)
-        all_except_accounts
-          Only restore the accounts (ie. users' settings and contents of the mailboxes)
+        server_settings
+          Restore server-side settings (ie. domains, mailing lists, admins list, etc)
+        accounts_settings
+          Restore accounts settings (ie. identity, password, aliases, signatures, filters, etc)
+        accounts_data
+          Restore accounts data (ie. folders, mails, contacts, calendars, briefcase, tasks, etc)
 
   OTHERS
 
@@ -111,7 +104,7 @@ function exit_usage() {
 
     (3) Restore only the stuff related to the account of jdoe@example.com and nothing else
         (the domain example.com has to already exist, but not the account jdoe@example.com)
-          zimbra-restore.sh -b /tmp/mybackups/ -e all_except_accounts -m jdoe@example.com
+          zimbra-restore.sh -b /tmp/mybackups/ -i accounts_settings -i accounts_data -m jdoe@example.com
 
 USAGE
 
@@ -142,7 +135,7 @@ function cleanFailedProcess() {
 
     if [ -z "${ask_remove}" -o "${ask_remove}" = Y -o "${ask_remove}" = y ]; then
       if zimbraRemoveAccount "${_restoring_account}"; then
-        log_info "The account <${_restoring_account}> has been removed"
+        log_info "${_restoring_account}: Incomplete account has been removed"
       fi
     fi
 
@@ -150,13 +143,37 @@ function cleanFailedProcess() {
   fi
 }
 
-# Return the size in human-readable bytes of a data.tar file
+# Return the size in human-readable bytes of the archive containing
+# the backuped data of the account
 function getAccountDataFileSize() {
   local email="${1}"
-  local backup_path="${_backups_path}/accounts/${email}"
+  local backup_path="${_backups_path}/accounts/${email}/data"
   local backup_file="${backup_path}/data.tar"
 
   printf "%s" "$(du -sh "${backup_file}" | awk '{ print $1 }')B"
+}
+
+# Throw an error if the directory exists but is not usable
+function checkBackupedDirectoryAccess() {
+  local backup_path="${1}"
+
+  if [ -d "${backup_path}" -a \( ! -x "${backup_path}" -o ! -r "${backup_path}" \) ]; then
+    log_err "Directory <${backup_path}> exists but is not readable"
+    exit 1
+  fi
+}
+
+# Throw an error if the file (or its parent directory) exists but is not usable
+function checkBackupedFileAccess() {
+  local backup_file="${1}"
+  local backup_path=$(dirname "${backup_file}")
+
+  checkBackupedDirectoryAccess "${backup_path}"
+
+  if [ -f "${backup_file}" -a ! -r "${backup_file}" ]; then
+    log_err "File <${backup_file}> exists but is not readable"
+    exit 1
+  fi
 }
 
 
@@ -164,121 +181,149 @@ function getAccountDataFileSize() {
 ## RESTORE ##
 #############
 
-# Create the domains written in a list available in the backup
+# Create domains corresponding to the folders saved in server/domains/
 function zimbraRestoreDomains() {
-  local backup_path="${_backups_path}/admin"
-  local backup_file="${backup_path}/domains"
+  local backup_path="${_backups_path}/server/domains"
 
-  if [ ! -f "${backup_file}" -o ! -r "${backup_file}" ]; then
-    log_err "File <${backup_file}> is missing, is not a regular file or is not readable"
-    exit 1
+  checkBackupedDirectoryAccess "${backup_path}"
+  local domains=$(find "${backup_path}" -mindepth 1 -maxdepth 1 -type d -printf '%f ' 2> /dev/null || true)
+
+  if [ -n "${domains}" ]; then
+    for domain in ${domains}; do
+      if [ "${domain}" != "${_zimbra_install_domain}" ]; then
+        log_debug "Server/Settings: Create domain <${domain}>"
+        zimbraCreateDomain "${domain}"
+      else
+        log_debug "Server/Settings: Domain <${domain}> has been skipped because created when installating the server"
+      fi
+    done
+  else
+    log_warn "Server/Settings: No backuped domain found"
   fi
-
-  while read domain; do
-    if [ "${domain}" != "${_zimbra_install_domain}" ]; then
-      log_debug "Create domain <${domain}>"
-      zimbraCreateDomain "${domain}"
-    else
-      log_debug "Skip domain <$domain> creation (install domain)"
-    fi
-  done < "${backup_file}"
 }
 
 # Create DKIM keys for the domains that are supposed to use one,
-# according to the list of backuped DKIM keys
+# according to the server/domains/<domain>/dkim_info files
 function zimbraRestoreDomainsDkim() {
-  local backup_path="${_backups_path}/admin/domains_dkim"
-  local domains=$(ls "${backup_path}")
+  local backup_path="${_backups_path}/server/domains"
 
-  for domain in ${domains}; do
-    local backup_file="${backup_path}/${domain}"
+  checkBackupedDirectoryAccess "${backup_path}"
+  local domains=$(find "${backup_path}" -mindepth 1 -maxdepth 1 -type d -printf '%f ' 2> /dev/null || true)
 
-    if [ ! -f "${backup_file}" -o ! -r "${backup_file}" ]; then
-      log_err "File <${backup_file}> is not a regular file or is not readable"
-      exit 1
-    fi
+  if [ -n "${domains}" ]; then
+    for domain in ${domains}; do
+      local backup_file="${backup_path}/${domain}/dkim_info"
 
-    # Unfortunately there is no way in Zimbra to restore an already existing private key
-    log_info "Generating new DKIM keys for <${domain}>"
-    local dkim_pubkey=$(zimbraCreateDkim "${domain}")
+      if [ -f "${backup_file}" ]; then
+        checkBackupedFileAccess "${backup_file}"
 
-    log_info "${dkim_pubkey}"
-    _generated_dkim_keys["${domain}"]="${dkim_pubkey}"
-  done
+        # Unfortunately there is no way in Zimbra to restore an already existing private key
+        # so for now, we just generate a new one
+        log_info "Server/Settings: Generating new DKIM keys for domain <${domain}>"
+        local dkim_pubkey=$(zimbraCreateDkim "${domain}")
+
+        log_info "${dkim_pubkey}"
+        _generated_dkim_keys["${domain}"]="${dkim_pubkey}"
+      fi
+    done
+  else
+    log_warn "Server/Settings: No backuped domain found"
+  fi
 }
 
-# Create mailing lists registred in the backup, create the aliases, and add all the members
+# Create mailing lists registred in the backup, with aliases and list of members
 function zimbraRestoreLists() {
-  local backup_path="${_backups_path}/lists"
-  local lists=$(ls "${backup_path}")
+  local backup_path="${_backups_path}/server/lists"
 
-  for list_email in ${lists}; do
-    local backup_path_list="${backup_path}/${list_email}"
-    local backup_file_members="${backup_path_list}/members"
-    local backup_file_aliases="${backup_path_list}/aliases"
+  checkBackupedDirectoryAccess "${backup_path}"
+  local lists=$(find "${backup_path}" -mindepth 1 -maxdepth 1 -type d -printf '%f ' 2> /dev/null || true)
 
-    if [ ! -d "${backup_path_list}" -o ! -x "${backup_path_list}" -o ! -r "${backup_path_list}" ]; then
-      log_err "Directory <$backup_path_list> is not a directory or is not readable"
-      exit 1
-    fi
+  if [ -n "${lists}" ]; then
+    for list_email in ${lists}; do
+      local backup_path_list="${backup_path}/${list_email}"
+      local backup_file_members="${backup_path_list}/members"
+      local backup_file_aliases="${backup_path_list}/aliases"
 
-    if [ ! -f "${backup_file_members}" -o ! -r "${backup_file_members}" ]; then
-      log_err "File <${backup_file_members}> is not a regular file or is not readable"
-      exit 1
-    fi
+      log_debug "Server/Settings: Create mailing list <${list_email}>"
+      zimbraCreateList "${list_email}"
 
-    if [ ! -f "${backup_file_aliases}" -o ! -r "${backup_file_aliases}" ]; then
-      log_err "File <${backup_file_aliases}> is not a regular file or is not readable"
-      exit 1
-    fi
+      # List aliases
+      if [ -f "${backup_file_aliases}" -a -s "${backup_file_aliases}" ]; then
+        checkBackupedFileAccess "${backup_file_aliases}"
+        log_debug "Server/Settings: Restore aliases of list <${list_email}>"
 
-    log_debug "Create mailing list <${list_email}>"
-    zimbraCreateList "${list_email}"
+        while read alias_email; do
+          log_debug "Server/Settings: Add <${alias_email}> as an alias of list <${list_email}>"
+          zimbraSetListAlias "${list_email}" "${alias_email}"
+        done < "${backup_file_aliases}"
+      else
+        log_debug "Server/Settings: No backuped aliases found for list <${list_email}>"
+      fi
 
-    log_debug "${list_email}: Restore aliases"
+      # List members
+      if [ -f "${backup_file_members}" -a -s "${backup_file_members}" ]; then
+        checkBackupedFileAccess "${backup_file_members}"
+        log_debug "Server/Settings: Restore members of list <${list_email}>"
 
-    while read alias_email; do
-      log_debug "${list_email}: Add <${alias_email}> as a list alias"
-      zimbraSetListAlias "${list_email}" "${alias_email}"
-    done < "${backup_file_aliases}"
-
-    log_debug "${list_email}: Restore members"
-
-    while read member_email; do
-      log_debug "${list_email}: Add <${member_email}> as a list member"
-      zimbraSetListMember "${list_email}" "${member_email}"
-    done < "${backup_file_members}"
-  done
+        while read member_email; do
+          log_debug "Server/Settings: Add <${member_email}> as a member of list <${list_email}>"
+          zimbraSetListMember "${list_email}" "${member_email}"
+        done < "${backup_file_members}"
+      else
+        log_debug "Server/Settings: No backuped list of members found for list <${list_email}>"
+      fi
+    done
+  else
+    log_debug "Server/Settings: No backuped mailing lists found"
+  fi
 }
 
-# Create an email account based on the information available in the settings file
+# Create an email account based on the information available in the identity-related settings
 # The default password is a generated one (it's not possible to directly pass an hash)
 function zimbraRestoreAccount() {
   local email="${1}"
+  local backup_path="${_backups_path}/accounts/${email}/settings/identity"
 
-  checkAccountSettingsFile "${email}"
+  declare -A fields
+  fields=([cn]= [givenName]= [displayName]=)
 
-  local cn=$(extractFromAccountSettingsFile "${email}" cn)
-  local givenName=$(extractFromAccountSettingsFile "${email}" givenName)
-  local displayName=$(extractFromAccountSettingsFile "${email}" displayName)
+  checkBackupedDirectoryAccess "${backup_path}"
+
+  for field in "${!fields[@]}"; do
+    local backup_file="${backup_path}/${field}"
+    checkBackupedFileAccess "${backup_file}"
+
+    if [ -f "${backup_file}" -a -s "${backup_file}" ]; then
+      fields[$field]=$(cat "${backup_file}")
+    fi
+  done
+
+  log_debug "${email}: cn=<${fields[cn]}>, givenName=<${fields[givenName]}>, displayName=<${fields[displayName]}>"
 
   # The hash of the SSL private key is used as a salt
   local generated_password=$(printf '%s' "$(sha256sum ${_zimbra_main_path}/ssl/zimbra/ca/ca.key)${RANDOM}" | sha256sum | cut -c 1-20)
 
-  zimbraCreateAccount "${email}" "${cn}" "${givenName}" "${displayName}" "${generated_password}"
+  zimbraCreateAccount "${email}" "${fields[cn]}" "${fields[givenName]}" "${fields[displayName]}" "${generated_password}"
   _generated_account_passwords["${email}"]="${generated_password}"
 }
 
-# Update the password on an account with a hash, to restore the password
-# stored in the settings file
+# Update an account password, providing the hash saved in the backup
 function zimbraRestoreAccountPassword() {
   local email="${1}"
+  local backup_path="${_backups_path}/accounts/${email}/settings/identity"
+  local backup_file="${backup_path}/userPassword"
 
-  checkAccountSettingsFile "${email}"
-  local userPassword=$(extractFromAccountSettingsFile "${email}" userPassword)
+  checkBackupedFileAccess "${backup_file}"
 
-  zimbraUpdateAccountPassword "${email}" "${userPassword}"
-  unset _generated_account_passwords["${email}"]
+  if [ -f "${backup_file}" -a -s "${backup_file}" ]; then
+    local userPassword=$(cat "${backup_path}/userPassword" || true)
+
+    zimbraUpdateAccountPassword "${email}" "${userPassword}"
+    unset _generated_account_passwords["${email}"]
+  else
+    log_warn "${email}: No backuped password found"
+    log_warn "${email}: You can still use the generated one <${_generated_account_passwords["${email}"]}>"
+  fi
 }
 
 # Force the user of the account to change their password next time they log in
@@ -302,177 +347,110 @@ function zimbraRestoreAccountUnlock() {
   zimbraSetAccountLock "${email}" false
 }
 
-# Set the CatchAllAddress of an account if a domain to catch was backuped
-# A CatchAll enables an account to receive all the mails sent to non-existing
-# email addresses for that domain
-function zimbraRestoreAccountCatchAll() {
-  local email="${1}"
-  local backup_path="${_backups_path}/accounts/${email}"
-  local backup_file="${backup_path}/catch_all"
-
-  if [ ! -f "${backup_file}" -o ! -r "${backup_file}" ]; then
-    log_err "${email}: File <${backup_file}> is missing, is not a regular file or is not readable"
-    log_err "${email}: Catch-all will *NOT* be restored"
-    return
-  fi
-
-  local at_domain=$(head -n1 "${backup_file}")
-
-  if [ -n "${at_domain}" ]; then
-    log_debug "${email}: Is a CatchAll for <${at_domain}>"
-    zimbraSetAccountCatchAll "${email}" "${at_domain}"
-  fi
-}
-
-# Set an email address to which all mails will be automatically forwarded
-function zimbraRestoreAccountForwarding() {
-  local email="${1}"
-  local backup_path="${_backups_path}/accounts/${email}"
-  local backup_file="${backup_path}/forwarding"
-
-  if [ ! -f "${backup_file}" -o ! -r "${backup_file}" ]; then
-    log_err "${email}: File <${backup_file}> is missing, is not a regular file or is not readable"
-    log_err "${email}: Forwarding setting will *NOT* be restored"
-    return
-  fi
-
-  local to_email=$(sed -n 1p "${backup_file}")
-
-  if [ -n "${to_email}" ]; then
-    local keep_copies=$(sed -n 2p "${backup_file}")
-
-    if [ "${keep_copies}" = 'TRUE' ]; then
-      keep_copies=true
-      log_debug "${email}: Forwards to <${to_email}> (with copies)"
-    else
-      keep_copies=false
-      log_debug "${email}: Forwards to <${to_email}> (with no copies)"
-    fi
-
-    zimbraSetAccountForwarding "${email}" "${to_email}" "${keep_copies}"
-  fi
-}
-
-# Set an auto-reply message for when the user is on vacation, if configured when the account was backuped
-function zimbraRestoreAccountOutOfOffice() {
-  local email="${1}"
-
-  checkAccountSettingsFile "${email}"
-
-  local replyEnabled=$(extractFromAccountSettingsFile "${email}" zimbraFeatureOutOfOfficeReplyEnabled)
-  local cacheDuration=$(extractFromAccountSettingsFile "${email}" zimbraPrefOutOfOfficeCacheDuration)
-  local externalReply=$(extractFromAccountSettingsFile "${email}" zimbraPrefOutOfOfficeExternalReply)
-  local externalReplyEnabled=$(extractFromAccountSettingsFile "${email}" zimbraPrefOutOfOfficeExternalReplyEnabled)
-  local fromDate=$(extractFromAccountSettingsFile "${email}" zimbraPrefOutOfOfficeFromDate)
-  local reply=$(extractFromAccountSettingsFile "${email}" zimbraPrefOutOfOfficeReply)
-  local replyEnabled=$(extractFromAccountSettingsFile "${email}" zimbraPrefOutOfOfficeReplyEnabled)
-  local statusAlertOnLogin=$(extractFromAccountSettingsFile "${email}" zimbraPrefOutOfOfficeStatusAlertOnLogin)
-  local untilDate=$(extractFromAccountSettingsFile "${email}" zimbraPrefOutOfOfficeUntilDate)
-
-  zimbraSetAccountOutOfOffice "${email}" "${replyEnabled}" "${cacheDuration}" "${externalReply}" "${externalReplyEnabled}"\
-    "${fromDate}" "${reply}" "${replyEnabled}" "${statusAlertOnLogin}" "${untilDate}"
-}
-
-# Set all the email aliases registred for an account in the backup
+# Set all the email aliases associated to the account in the backup
 function zimbraRestoreAccountAliases() {
   local email="${1}"
-  local backup_path="${_backups_path}/accounts/${email}"
+  local backup_path="${_backups_path}/accounts/${email}/settings"
   local backup_file="${backup_path}/aliases"
 
-  if [ ! -f "${backup_file}" -o ! -r "${backup_file}" ]; then
-    log_err "${email}: File <${backup_file}> is missing, is not a regular file or is not readable"
-    log_err "${email}: Aliases will *NOT* be restored"
-    return
-  fi
+  checkBackupedFileAccess "${backup_file}"
 
-  while read alias; do
-    if [ "${alias}" != "root@${_zimbra_install_domain}" -a "${alias}" != "postmaster@${_zimbra_install_domain}" ]; then
-      zimbraSetAccountAlias "${email}" "${alias}"
-    else
-      log_debug "${email}: Skip alias <${alias}> creation (install alias)"
-    fi
-  done < "${backup_file}"
+  if [ -f "${backup_file}" -a -s "${backup_file}" ]; then
+    while read alias; do
+      if [ "${alias}" != "root@${_zimbra_install_domain}" -a "${alias}" != "postmaster@${_zimbra_install_domain}" ]; then
+        log_debug "${email}/Settings: Create alias <${alias}>"
+        zimbraSetAccountAlias "${email}" "${alias}"
+      else
+        log_debug "${email}/Settings: Alias <${alias}> has been skipped because created during the server installation"
+      fi
+    done < "${backup_file}"
+  else
+    log_debug "${email}/Settings: No backuped aliases found"
+  fi
 }
 
-# Create all the signatures saved in the backup for that email account
+# Create all the signatures saved in the backup for this account
 function zimbraRestoreAccountSignatures() {
   local email="${1}"
   local backup_path="${_backups_path}/accounts/${email}/signatures"
 
-  if [ ! -d "${backup_path}" -o ! -r "${backup_path}" ]; then
-    log_err "${email}: Path <${backup_path}> is missing, is not a directory or is not readable"
-    log_err "${email}: Signatures will *NOT* be restored"
-    return
+  checkBackupedDirectoryAccess "${backup_path}"
+  local signatures=$(find "${backup_path}" -mindepth 1 -maxdepth 1 -type f -printf '%f ' 2> /dev/null || true)
+
+  if [ -n "${signatures}" ]; then
+    find "${backup_path}" -mindepth 1 | while read backup_file; do
+      checkBackupedFileAccess "${backup_file}"
+
+      # The name is stored in the first line of the file
+      local name=$(head -n 1 "${backup_file}")
+      local content=$(tail -n +2 "${backup_file}")
+      local type=txt
+
+      if [[ "${backup_file}" =~ \.html$ ]]; then
+        type=html
+      fi
+
+      log_debug "${email}/Settings: Create a signature type ${type} named <${name}>"
+      zimbraSetAccountSignature "${email}" "${name}" "${type}" "${content}"
+    done
+  else
+    log_debug "${email}/Settings: No backuped signatures found"
   fi
-
-  find "${backup_path}" -mindepth 1 | while read backup_file
-  do
-    if [ ! -f "${backup_file}" -a -r "${backup_file}" ]; then
-      log_err "${email}: File <${backup_file}> is not a regular file or is not readable"
-      exit 1
-    fi
-
-    # The name is stored in the first line of the file
-    local name=$(head -n 1 "${backup_file}")
-    local content=$(tail -n +2 "${backup_file}")
-    local type=txt
-
-    if [[ "${backup_file}" =~ \.html$ ]]; then
-      type=html
-    fi
-
-    log_debug "${email}: Create signature type ${type} named <${name}>"
-    zimbraSetAccountSignature "${email}" "${name}" "${type}" "${content}"
-  done
 }
 
-# Create all the Sieve filters defined by the user to automatically redirect input emails
-# to custom folders of the account
-function zimbraRestoreAccountFilters() {
+function zimbraRestoreAccountOtherSettings() {
   local email="${1}"
-  local backup_path="${_backups_path}/accounts/${email}"
-  local backup_file="${backup_path}/filters"
+  local backup_path="${_backups_path}/accounts/${email}/settings/others"
 
-  if [ ! -f "${backup_file}" -o ! -r "${backup_file}" ]; then
-    log_err "${email}: File <${backup_file}> is missing, is not a regular file or is not readable"
-    log_err "${email}: Filters will *NOT* be restored"
-    return
+  checkBackupedDirectoryAccess "${backup_path}"
+  local settings=$(find "${backup_path}" -mindepth 1 -maxdepth 1 -type f -name '[0-9][0-9]*-zimbra*' -printf '%f ' 2> /dev/null || true)
+
+  if [ -n "${settings}" ]; then
+    for setting in ${settings}; do
+      local backup_file="${backup_path}/${setting}"
+      checkBackupedFileAccess "${backup_file}"
+
+      local value=$(cat "${backup_file}")
+      local field=${setting#*-}
+
+      zimbraSetAccountSetting "${email}" "${field}" "${value}"
+    done
+  else
+    log_debug "${email}/Settings: No other backuped settings found"
   fi
-
-  zimbraSetAccountFilters "${email}" "${backup_file}"
 }
 
 # Restore all the data for the account, with folders/mails/tasks/calendar/etc
 function zimbraRestoreAccountData() {
   local email="${1}"
-  local backup_path="${_backups_path}/accounts/${email}"
+  local backup_path="${_backups_path}/accounts/${email}/data"
   local backup_file="${backup_path}/data.tar"
 
-  if [ ! -f "${backup_file}" -o ! -r "${backup_file}" ]; then
-    log_err "${email}: File <${backup_file}> is missing, is not a regular file or is not readable"
-    log_err "${email}: Account data will *NOT* be restored"
-    return
-  fi
+  checkBackupedFileAccess "${backup_file}"
 
-  zimbraSetAccountData "${email}" "${backup_file}"
+  if [ -f "${backup_file}" -a -s "${backup_file}" ]; then
+    zimbraSetAccountData "${email}" "${backup_file}"
+  else
+    log_warn "${email}/Data: No backuped data found"
+  fi
 }
 
 # Create all the folders which were excluded during the backup of the account
 # Obviously, the folders are now empty but ready to be used again with the Siever filters
 function zimbraRestoreAccountDataExcludedPaths() {
   local email="${1}"
-  local backup_path="${_backups_path}/accounts/${email}"
+  local backup_path="${_backups_path}/accounts/${email}/data"
   local backup_file="${backup_path}/excluded_data_paths_full"
 
-  if [ ! -f "${backup_file}" -o ! -r "${backup_file}" ]; then
-    log_err "${email}: File <${backup_file}> is missing, is not a regular file or is not readable"
-    log_err "${email}: Excluded folders in the data will *NOT* be recreated"
-    return
-  fi
+  checkBackupedFileAccess "${backup_file}"
 
-  while read path; do
-    zimbraCreateDataFolder "${email}" "${path}"
-  done < "${backup_file}"
+  if [ -f "${backup_file}" -a -s "${backup_file}" ]; then
+    while read path; do
+      zimbraCreateDataFolder "${email}" "${path}"
+    done < "${backup_file}"
+  else
+    log_debug "${email}/Data: No list of excluded data paths found"
+  fi
 }
 
 
@@ -485,14 +463,10 @@ _backups_include_accounts=
 _backups_exclude_accounts=
 _option_force_change_passwords=false
 _option_reset_passwords=false
-_exclude_domains=false
-_exclude_lists=false
-_exclude_settings=false
-_exclude_aliases=false
-_exclude_signatures=false
-_exclude_filters=false
-_exclude_accounts=false
-_exclude_data=false
+_include_all=true
+_include_server_settings=false
+_include_accounts_settings=false
+_include_accounts_data=false
 _accounts_to_restore=
 _restoring_account=
 
@@ -511,7 +485,7 @@ trap 'exit 1' INT
 ### OPTIONS ###
 ###############
 
-while getopts 'm:x:frb:p:u:e:d:h' opt; do
+while getopts 'm:x:frb:p:u:i:d:h' opt; do
   case "${opt}" in
     m) _backups_include_accounts=$(echo -E ${_backups_include_accounts} ${OPTARG}) ;;
     x) _backups_exclude_accounts=$(echo -E ${_backups_exclude_accounts} ${OPTARG}) ;;
@@ -521,19 +495,13 @@ while getopts 'm:x:frb:p:u:e:d:h' opt; do
     b) _backups_path="${OPTARG%/}" ;;
     p) _zimbra_main_path="${OPTARG%/}" ;;
     u) _zimbra_user="${OPTARG}" ;;
-    e) for subopt in ${OPTARG}; do
+    i) _include_all=false
+       for subopt in ${OPTARG}; do
          case "${subopt}" in
-           domains) _exclude_domains=true ;;
-           lists) _exclude_lists=true ;;
-           aliases) _exclude_aliases=true ;;
-           signatures) _exclude_signatures=true ;;
-           filters) _exclude_filters=true ;;
-           accounts) _exclude_accounts=true ;;
-           data) _exclude_data=true ;;
-           all_except_accounts)
-             _exclude_domains=true
-             _exclude_lists=true ;;
-           *) log_err "Value <${subopt}> not supported by option -e"; exit 1 ;;
+           server_settings) _include_server_settings=true ;;
+           accounts_settings) _include_accounts_settings=true ;;
+           accounts_data) _include_accounts_data=true ;;
+           *) log_err "Value <${subopt}> not supported by option -i"; exit 1 ;;
          esac
        done ;;
     d) _debug_mode="${OPTARG}" ;;
@@ -548,6 +516,17 @@ fi
 
 if [ -n "${_backups_include_accounts}" -a -n "${_backups_exclude_accounts}" ]; then
   log_err "Options -m and -x are not compatible"
+  exit 1
+fi
+
+if ! "${_include_all}" && ! "${_include_accounts_settings}" && "${_option_force_change_passwords}" ; then
+  log_err "Options -f and -r are usable only when restoring accounts settings and/or data"
+  exit 1
+fi
+
+if ! ${_include_all} && ! ${_include_accounts_settings} && ! ${_include_accounts_data} &&\
+  [ -n "${_backups_include_accounts}" -o -n "${_backups_exclude_accounts}" ]; then
+  log_err "Options -m and -x are not usable when no account settings and/or data are intended to be restored (see -i)"
   exit 1
 fi
 
@@ -570,20 +549,18 @@ log_info "Getting Zimbra main domain"
 _zimbra_install_domain=$(zimbraGetMainDomain)
 log_debug "Zimbra main domain is <${_zimbra_install_domain}>"
 
-${_exclude_domains} || {
-  log_info "Restoring domains"
+(${_include_all} || ${_include_server_settings}) && {
+  log_info "Server/Settings: Restoring domains"
   zimbraRestoreDomains
 
-  log_info "Restoring DKIM keys"
+  log_info "Server/Settings: Restoring DKIM keys"
   zimbraRestoreDomainsDkim
-}
 
-${_exclude_lists} || {
-  log_info "Restoring mailing lists"
+  log_info "Server/Settings: Restoring mailing lists"
   zimbraRestoreLists
 }
 
-${_exclude_accounts} || {
+(${_include_all} || ${_include_accounts_settings} || ${_include_accounts_data}) && {
   _accounts_to_restore=$(selectAccountsToRestore "${_backups_include_accounts}" "${_backups_exclude_accounts}")
 
   if [ -z "${_accounts_to_restore}" ]; then
@@ -593,78 +570,69 @@ ${_exclude_accounts} || {
 
     # Restore accounts
     for email in ${_accounts_to_restore}; do
-      if zimbraIsAccountExisting "${email}"; then
-        log_warn "Skip account <${email}> (already exists in Zimbra)"
+
+      # Skip the account if already existing, except if only the data has to be restored
+      if zimbraIsAccountExisting "${email}" && (${_include_accounts_settings} || ! ${_include_accounts_data}); then
+        log_warn "${email}: Has been skipped because already existing in Zimbra"
       else
         resetAccountProcessDuration
 
         # Create account
-        if zimbraIsInstallUser "${email}"; then
-          log_debug "Skip account <${email}> creation (install user)"
-        else
-          log_info "Creating account <${email}>"
-          zimbraRestoreAccount "${email}"
-
-          _restoring_account="${email}"
-
-          # Restore the password or keep the generated one
-          if ${_option_reset_passwords}; then
-            log_info "${email}: New password is ${_generated_account_passwords["${email}"]}"
+        (${_include_all} || ${_include_accounts_settings}) && {
+          if zimbraIsInstallUser "${email}"; then
+            log_debug "${email}: Creation has been skipped because it's the user used for installing the server"
           else
-            log_info "${email}: Restoring former password"
-            zimbraRestoreAccountPassword "${email}"
+            # Create account with the identity-related settings
+            log_info "${email}: Creating account"
+            zimbraRestoreAccount "${email}"
+
+            _restoring_account="${email}"
+
+            # Restore the password or keep the generated one
+            if ${_option_reset_passwords}; then
+              log_info "${email}: New password is ${_generated_account_passwords["${email}"]}"
+            else
+              log_info "${email}: Restoring former password"
+              zimbraRestoreAccountPassword "${email}"
+            fi
+
+            # Force password changing
+            if ${_option_force_change_passwords}; then
+              log_info "${email}: Force user to change the password next time they log in"
+              zimbraRestoreAccountForcePasswordChanging "${email}"
+            fi
           fi
+        }
 
-          # Force password changing
-          if ${_option_force_change_passwords}; then
-            log_info "${email}: Force user to change the password next time they log in"
-            zimbraRestoreAccountForcePasswordChanging "${email}"
-          fi
-        fi
+        log_info "${email}: Restoring account"
 
-        # Restore other settings and data
-        log_info "Restoring account <${email}>"
-
-        log_info "${email}: Locking the account"
+        log_info "${email}: Locking for the time of the restoration"
         zimbraRestoreAccountLock "${email}"
 
-        ${_exclude_aliases} || {
-          log_info "${email}: Restoring aliases"
-          zimbraRestoreAccountAliases "${email}"
-        }
-
-        ${_exclude_signatures} || {
-          log_info "${email}: Restoring signatures"
-          zimbraRestoreAccountSignatures "${email}"
-        }
-
-        ${_exclude_filters} || {
-          log_info "${email}: Restoring filters"
-          zimbraRestoreAccountFilters "${email}"
-        }
-
-        ${_exclude_settings} || {
+        # Restore other settings
+        (${_include_all} || ${_include_accounts_settings}) && {
           log_info "${email}: Restoring settings"
 
-          log_debug "${email}: Restore CatchAll setting"
-          zimbraRestoreAccountCatchAll "${email}"
+          log_info "${email}/Settings: Restoring aliases"
+          zimbraRestoreAccountAliases "${email}"
 
-          log_debug "${email}: Restore Forwarding setting"
-          zimbraRestoreAccountForwarding "${email}"
+          log_info "${email}/Settings: Restoring signatures"
+          zimbraRestoreAccountSignatures "${email}"
 
-          log_debug "${email}: Restore OutOfOffice settings"
-          zimbraRestoreAccountOutOfOffice "${email}"
+          log_info "${email}/Settings: Restoring other settings"
+          zimbraRestoreAccountOtherSettings "${email}"
         }
 
-        ${_exclude_data} || {
+        # Restore data
+        (${_include_all} || ${_include_accounts_data}) && {
           log_info "${email}: Restoring data ($(getAccountDataFileSize "${email}") compressed)"
           zimbraRestoreAccountData "${email}"
 
-          log_debug "${email}: Restore excluded paths as empty folders"
+          log_debug "${email}/Data: Restore excluded paths as empty folders"
           zimbraRestoreAccountDataExcludedPaths "${email}"
         }
 
-        log_info "${email}: Unlocking the account"
+        log_info "${email}: Unlocking"
         zimbraRestoreAccountUnlock "${email}"
 
         showAccountProcessDuration

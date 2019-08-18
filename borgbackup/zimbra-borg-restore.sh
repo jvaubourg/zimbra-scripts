@@ -70,17 +70,12 @@ function exit_usage() {
       Zimbra UNIX group
       [Default] ${_zimbra_group}
 
-  EXCLUSIONS
+  PARTIAL RESTORE
 
-    -E ASSET
-      Do a partial restore, by excluding some settings/data
+    -e
+      Only restore the accounts (settings + data) but not the server-side settings
+      The accounts have to not already exist on the server
       [Default] Everything is restored
-
-      ASSET can be:
-        server
-          Do not restore server-related data (ie. domains, lists, etc), just accounts
-        accounts
-          Do not restore any account, just server-related data
 
   MAIN BORG REPOSITORY
 
@@ -93,11 +88,11 @@ function exit_usage() {
       Passphrase of the Borg repository (see -a)
 
     -t port
-      SSH port to reach all remote Borg servers (see -a and backup config files)
+      SSH port to reach all remote Borg servers (see -a and Backup Config Files)
       [Default] ${_borg_repo_ssh_port}
 
     -k path
-      Path to the SSH private key to use to connect to all remote servers (see -a and backup config files)
+      Path to the SSH private key to use to connect to all remote servers (see -a and Backup Config Files)
       This SSH key has to be configured without any passphrase
       [Default] ${_borg_repo_ssh_key}
 
@@ -125,7 +120,7 @@ function exit_usage() {
 
     (1) Restore everything from mailbackup@mybackups.example.com (using sshkey.priv and port 2222).
         Server-related data will be restored first (using the :main Borg repo with the -z passphrase),
-        then the accounts will be restored one by one, using the backup config files available in the
+        then the accounts will be restored one by one, using the Backup Config Files available in the
         :main repo. Last archive of every Borg repo is used
 
         zimbra-borg-restore.sh\\
@@ -135,14 +130,13 @@ function exit_usage() {
           -t 2222
 
     (2) Restore only the account jdoe@example.com (who is not existing anymore in Zimbra) but
-        not the server-related data
+        not the other ones
 
         zimbra-borg-restore.sh\\
           -a borg@testrestore.choca.pics:main\\
           -z 'JRX2jVkRDpH6+OQ9hw/7sWn4F0OBps42I2TQ6DvRIgI='\\
           -k /root/borg/sshkey.priv\\
           -t 2222\\
-          -E server\\
           -m jdoe@example.com
 
 USAGE
@@ -178,6 +172,11 @@ function cleanFailedProcess() {
       borg umount "${mount_folder}"
     done
   fi
+
+  if [ -d "${_borg_local_folder_tmp}" ]; then
+    emptyTmpFolder
+    rmdir "${_borg_local_folder_tmp}"
+  fi
 }
 
 # Remove and create again the Borg TMP folder where the backups are done before
@@ -211,7 +210,7 @@ function borgCopyMain() {
     # Mount the main repository
     borg mount ${_borg_debug_mode} --last 1 "${_borg_repo_main}" "${mount_folder}" > /dev/null || {
       log_err "Unable to mount the main Borg archive (last one)"
-      log_err "Unable to have access to the backup config files of the accounts"
+      log_err "Unable to have access to the Backup Config Files of the accounts"
       exit 1
     }
 
@@ -227,7 +226,7 @@ function borgCopyMain() {
     # Mount the main repository
     borg mount ${_borg_debug_mode} "${_borg_repo_main}::${_restore_archive_date}" "${mount_folder}" > /dev/null || {
       log_err "Unable to mount the main Borg archive (${_restore_archive_date})"
-      log_err "Unable to have access to the backup config files of the accounts"
+      log_err "Unable to have access to the Backup Config Files of the accounts"
       exit 1
     }
 
@@ -245,7 +244,7 @@ function borgCopyMain() {
   # Create the accounts/ folder which is supposed to be there in a complete backup
   install -b -m 0700 -o "${_zimbra_user}" -g "${_zimbra_group}" -d "${_borg_local_folder_tmp}/accounts"
 
-  # Restore backup config files for accounts
+  # Restore Backup Config Files for accounts
   find "${archive_folder}/borg/configs/" -type f -name '*@*' -exec cp -a {} "${_borg_local_folder_configs}" \;
 
   # Umount the repository
@@ -256,7 +255,7 @@ function borgCopyMain() {
 
 function restoreMain() {
   log_info "Restoring using zimbra-restore.sh"
-  zimbra-restore.sh -d "${_debug_mode}" -e accounts -b "${_borg_local_folder_tmp}"
+  zimbra-restore.sh -d "${_debug_mode}" -i server_settings -b "${_borg_local_folder_tmp}"
 }
 
 function selectAccountsToBorgRestore() {
@@ -296,7 +295,7 @@ function borgRestoreAccount() {
   if [ -z "${date_archive}" ]; then
 
     # Mount the account repository
-    borg mount ${_borg_debug_mode} --last 1 "${borg_repo}" "${mount_folder}" > /dev/null || {
+    borg mount ${_borg_debug_mode} -o allow_other --last 1 "${borg_repo}" "${mount_folder}" > /dev/null || {
       log_err "${email}: Unable to mount the Borg archive (last one)"
       log_err "${email}: Account *NOT* restored"
 
@@ -314,7 +313,7 @@ function borgRestoreAccount() {
   else
 
     # Mount the account repository
-    borg mount ${_borg_debug_mode} --last 1 "${borg_repo}" "${mount_folder}" > /dev/null || {
+    borg mount ${_borg_debug_mode} -o allow_other --last 1 "${borg_repo}" "${mount_folder}" > /dev/null || {
       log_err "${email}: Unable to mount the Borg archive (${date_archive})"
       log_err "${email}: Account *NOT* restored"
 
@@ -334,7 +333,8 @@ function borgRestoreAccount() {
 
   log_info "${email}: Restoring using zimbra-restore.sh"
   _restore_options+=(-d "${_debug_mode}")
-  _restore_options+=(-e all_except_accounts)
+  _restore_options+=(-i accounts_settings)
+  _restore_options+=(-i accounts_data)
   _restore_options+=(-b "${_borg_local_folder_tmp}")
   _restore_options+=(-m "${email}")
   zimbra-restore.sh "${_restore_options[@]}"
@@ -368,8 +368,9 @@ _borg_repo_ssh_port=22
 _backups_path=
 _backups_include_accounts=
 _backups_exclude_accounts=
-_exclude_main=false
-_exclude_accounts=false
+_include_all=true
+_include_server_settings=false
+_include_accounts_full=false
 _accounts_to_restore=
 _restore_archive_date=
 _restore_options=()
@@ -386,7 +387,7 @@ trap 'exit 1' INT
 ### OPTIONS ###
 ###############
 
-while getopts 'm:x:fri:c:p:u:g:E:a:z:t:k:d:h' opt; do
+while getopts 'm:x:fri:c:p:u:g:ea:z:t:k:d:h' opt; do
   case "${opt}" in
     m) _backups_include_accounts=$(echo -En ${_backups_include_accounts} ${OPTARG}) ;;
     x) _backups_exclude_accounts=$(echo -En ${_backups_exclude_accounts} ${OPTARG}) ;;
@@ -397,14 +398,9 @@ while getopts 'm:x:fri:c:p:u:g:E:a:z:t:k:d:h' opt; do
     p) _zimbra_main_path="${OPTARG%/}" ;;
     u) _zimbra_user="${OPTARG}" ;;
     g) _zimbra_group="${OPTARG}" ;;
-    E) case "${OPTARG}" in
-         server) _exclude_main=true ;;
-         accounts) _exclude_accounts=true ;;
-         all_except_data)
-           _exclude_main=true
-           _exclude_accounts=false ;;
-         *) log_err "Value <${OPTARG}> not supported by option -E"; exit 1 ;;
-       esac ;;
+    e) _include_all=false
+       _include_server_settings=false
+       _include_accounts_full=true ;;
     a) _borg_repo_main="${OPTARG%/}" ;;
     z) _borg_repo_main_passphrase="${OPTARG%/}" ;;
     t) _borg_repo_ssh_port="${OPTARG}" ;;
@@ -464,20 +460,19 @@ fi
 install -b -m 0700 -o "${_zimbra_user}" -g "${_zimbra_group}" -d "${_borg_local_folder_main}"
 install -b -m 0700 -o "${_zimbra_user}" -g "${_zimbra_group}" -d "${_borg_local_folder_configs}"
 
-log_debug "Renew the TMP folder"
-emptyTmpFolder
+if [ -d "${_borg_local_folder_tmp}" ]; then
+  emptyTmpFolder
+fi
 
-(${_exclude_main} && ${_exclude_accounts}) || {
-  log_info "Mounting and copying files from the main repository"
-  borgCopyMain
-}
+log_info "Mounting and copying files from the main repository"
+borgCopyMain
 
-${_exclude_main} || {
-  log_info "Restoring server-related data"
+(${_include_all} || ${_include_server_settings}) && {
+  log_info "Restoring server-side settings"
   restoreMain
 }
 
-${_exclude_accounts} || {
+(${_include_all} || ${_include_accounts_full}) && {
   _accounts_to_restore=$(selectAccountsToBorgRestore)
 
   if [ -z "${_accounts_to_restore}" ]; then
@@ -490,7 +485,7 @@ ${_exclude_accounts} || {
       log_info "Restoring account <${email}>"
 
       if [ ! -f "${_borg_local_folder_configs}/${email}" ]; then
-        log_err "${email}: No backup config file found for this account"
+        log_err "${email}: No Backup Config File found for this account"
         log_err "${email}: Will *NOT* be restored"
       else
         resetAccountProcessDuration
