@@ -447,7 +447,7 @@ function zimbraBackupAccountData() {
   if [ -s "${backup_path}/excluded_data_paths" ]; then
     log_debug "${email}/Data: Calculate sizes of what is going to be backuped or excluded"
 
-    local exclude_paths=$(cat "${backup_path}/excluded_data_paths")
+    local exclude_paths=$(< "${backup_path}/excluded_data_paths")
     local exclude_paths_count=$(wc -l "${backup_path}/excluded_data_paths" | awk '{ print $1 }')
     local exclude_data_size=$(getAccountExcludeDataSize "${email}" "${exclude_paths}")
     backup_data_size=$(getAccountIncludeDataSize "${email}" "${exclude_data_size}")

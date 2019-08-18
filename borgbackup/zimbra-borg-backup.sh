@@ -215,8 +215,10 @@ function createAccountBackupConfigFile() {
   local separator=/
   local backup_options=
 
+  # Spaces cannot be used in the options
+  # (%q output could not be reused without an eval)
   if [ "${#_backups_options[@]}" -gt 0 ]; then
-    backup_options=$(printf '%q ' "${_backups_options[@]}")
+    backup_options=$(printf '%s ' "${_backups_options[@]}")
   fi
 
   if [ "${_borg_repo_accounts: -1}" = ':' ]; then

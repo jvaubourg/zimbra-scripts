@@ -295,7 +295,7 @@ function zimbraRestoreAccount() {
     checkBackupedFileAccess "${backup_file}"
 
     if [ -f "${backup_file}" -a -s "${backup_file}" ]; then
-      fields[$field]=$(cat "${backup_file}")
+      fields[$field]=$(< "${backup_file}")
     fi
   done
 
@@ -317,7 +317,7 @@ function zimbraRestoreAccountPassword() {
   checkBackupedFileAccess "${backup_file}"
 
   if [ -f "${backup_file}" -a -s "${backup_file}" ]; then
-    local userPassword=$(cat "${backup_path}/userPassword" || true)
+    local userPassword=$(< "${backup_path}/userPassword" || true)
 
     zimbraUpdateAccountPassword "${email}" "${userPassword}"
     unset _generated_account_passwords["${email}"]
@@ -411,7 +411,7 @@ function zimbraRestoreAccountOtherSettings() {
       local backup_file="${backup_path}/${setting}"
       checkBackupedFileAccess "${backup_file}"
 
-      local value=$(cat "${backup_file}")
+      local value=$(< "${backup_file}")
       local field=${setting#*-}
 
       zimbraSetAccountSetting "${email}" "${field}" "${value}"
