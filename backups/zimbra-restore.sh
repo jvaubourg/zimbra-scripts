@@ -21,7 +21,8 @@ function exit_usage() {
   cat <<USAGE
 
   ACCOUNTS
-    Already existing accounts in Zimbra will be skipped with a warning, except when restoring only data (see -i)
+    Already existing accounts in Zimbra will be skipped with a warning,
+    except when restoring only data (see -i)
 
     -m email
       Email of an account to include in the restore

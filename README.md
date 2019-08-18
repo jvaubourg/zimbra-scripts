@@ -236,7 +236,8 @@ Clone me into */usr/share/zimbra-scripts/* and do symbolic links for the .sh fil
           (using the -z passphrase) and the users' repos will be created in :users/
           (when no Backup Config File already exists for them in /opt/zimbra_borgackup/configs/)
   
-          zimbra-borg-backup.sh          -a mailbackup@mybackups.example.com:main\
+          zimbra-borg-backup.sh\
+            -a mailbackup@mybackups.example.com:main\
             -z 'JRX2jVkRDpH6+OQ9hw/7sWn4F0OBps42I2TQ6DvRIgI='\
             -k /root/borg/sshkey.priv\
             -t 2222\
@@ -248,7 +249,8 @@ Clone me into */usr/share/zimbra-scripts/* and do symbolic links for the .sh fil
           on mybackups.example.com (using sshkey.priv and port 2222) in users/<hash>,
           and a Backup Config File will be created in /opt/zimbra_borgackup/configs/
   
-          zimbra-borg-backup.sh          -a mailbackup@mybackups.example.com:main\
+          zimbra-borg-backup.sh\
+            -a mailbackup@mybackups.example.com:main\
             -z 'JRX2jVkRDpH6+OQ9hw/7sWn4F0OBps42I2TQ6DvRIgI='\
             -k /root/borg/sshkey.priv\
             -t 2222\
@@ -259,7 +261,8 @@ Clone me into */usr/share/zimbra-scripts/* and do symbolic links for the .sh fil
 ### Locally using zimbra-restore.sh
 
     ACCOUNTS
-      Already existing accounts in Zimbra will be skipped with a warning, except when restoring only data (see -i)
+      Already existing accounts in Zimbra will be skipped with a warning,
+      except when restoring only data (see -i)
   
       -m email
         Email of an account to include in the restore
