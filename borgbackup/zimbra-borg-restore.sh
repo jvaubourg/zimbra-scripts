@@ -172,6 +172,11 @@ function cleanFailedProcess() {
       borg umount "${mount_folder}"
     done
   fi
+
+  if [ -d "${_borg_local_folder_tmp}" ]; then
+    emptyTmpFolder
+    rmdir "${_borg_local_folder_tmp}"
+  fi
 }
 
 # Remove and create again the Borg TMP folder where the backups are done before
@@ -455,8 +460,9 @@ fi
 install -b -m 0700 -o "${_zimbra_user}" -g "${_zimbra_group}" -d "${_borg_local_folder_main}"
 install -b -m 0700 -o "${_zimbra_user}" -g "${_zimbra_group}" -d "${_borg_local_folder_configs}"
 
-log_debug "Renew the TMP folder"
-emptyTmpFolder
+if [ -d "${_borg_local_folder_tmp}" ]; then
+  emptyTmpFolder
+fi
 
 log_info "Mounting and copying files from the main repository"
 borgCopyMain
