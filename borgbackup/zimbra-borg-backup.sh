@@ -447,15 +447,15 @@ if [ -z "${_accounts_to_backup}" ]; then
 else
   log_debug "Accounts to backup: ${_accounts_to_backup}"
 
-  resetAccountProcessDuration
-
   # Backup accounts
   for email in ${_accounts_to_backup}; do
+    resetAccountProcessDuration
+
     log_info "Backuping account <${email}>"
     borgBackupAccount "${email}"
-  done
 
-  showAccountProcessDuration
+    showAccountProcessDuration
+  done
 fi
 
 showFullProcessDuration

@@ -489,7 +489,9 @@ borgCopyMain
         log_err "${email}: Will *NOT* be restored"
       else
         resetAccountProcessDuration
+
         borgRestoreAccount "${email}"
+
         showAccountProcessDuration
       fi
     done
