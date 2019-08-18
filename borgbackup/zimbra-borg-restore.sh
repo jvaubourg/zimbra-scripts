@@ -382,7 +382,7 @@ trap 'exit 1' INT
 ### OPTIONS ###
 ###############
 
-while getopts 'm:x:fri:c:p:u:g:I:a:z:t:k:d:h' opt; do
+while getopts 'm:x:fri:c:p:u:g:ea:z:t:k:d:h' opt; do
   case "${opt}" in
     m) _backups_include_accounts=$(echo -En ${_backups_include_accounts} ${OPTARG}) ;;
     x) _backups_exclude_accounts=$(echo -En ${_backups_exclude_accounts} ${OPTARG}) ;;
