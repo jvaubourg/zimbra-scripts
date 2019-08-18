@@ -215,7 +215,6 @@ function createAccountBackupConfigFile() {
   local separator=/
   local backup_options=
 
-  # From this point, spaces in option values are no more preserved :(
   if [ "${#_backups_options[@]}" -gt 0 ]; then
     backup_options=$(printf '%q ' "${_backups_options[@]}")
   fi
@@ -411,7 +410,8 @@ if [ -n "${_backups_include_accounts}" -a -n "${_backups_exclude_accounts}" ]; t
   exit 1
 fi
 
-if (printf '%s\n' "${_backups_options[@]}" | grep -qw -- -s) && (printf '%s\n' "${_backups_options[@]}" | grep -qw -- -i); then
+if [ "${#_backups_options[@]}" -gt 0 ] &&\
+  (printf '%s\n' "${_backups_options[@]}" | grep -qw -- -s) && (printf '%s\n' "${_backups_options[@]}" | grep -qw -- -i); then
   log_err "Option -s is not usable when the data of the accounts is not intended to be backuped (see -i)"
   exit 1
 fi
