@@ -4,6 +4,8 @@ WIP - Not ready to use
 
 Clone me into */usr/share/zimbra-scripts/* and do symbolic links for the .sh files to */usr/bin/local/*.
 
+**Remote: Host key verification failed.**: As root, always do a first SSH connection from the mail server to all the Borg servers to use, to validate yourself the host keys.
+
 ## Backup
 ### Locally using zimbra-backup.sh
 
