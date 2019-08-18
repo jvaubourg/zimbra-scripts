@@ -559,12 +559,12 @@ fi
 
 if ! ${_include_all} && ! ${_include_accounts_settings} && ! ${_include_accounts_data} &&\
   [ -n "${_backups_include_accounts}" -o -n "${_backups_exclude_accounts}" ]; then
-  log_err "Options -m and -x are not usable when no account settings and/or data are not intended to be backuped (see -i)"
+  log_err "Options -m and -x are not usable when no account settings and/or data are intended to be backuped (see -i)"
   exit 1
 fi
 
 if ! ${_include_all} && ! ${_include_accounts_data} && [ "${#_backups_exclude_data_regexes[@]}" -gt 0 ]; then
-  log_err "Option -s is not usable when the data of the accounts are not intended to be backuped (see -i)"
+  log_err "Option -s is not usable when the data of the accounts is not intended to be backuped (see -i)"
   exit 1
 fi
 

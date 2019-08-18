@@ -63,18 +63,6 @@ function exit_usage() {
       Zimbra UNIX group
       [Default] ${_zimbra_group}
 
-  EXCLUSIONS
-
-    -E ASSET
-      Do a partial backup, by excluding some settings/data
-      [Default] Everything is backuped
-
-      ASSET can be:
-        server
-          Do not backup server-related data (ie. domains, lists, etc), just accounts
-        accounts
-          Do not backup any account, just server-related data
-
   MAIN BORG REPOSITORY
 
     -a borg_repo
@@ -96,31 +84,24 @@ function exit_usage() {
       [Default] <main_folder>/private_ssh_key (see -c)
 
   DEFAULT BACKUP OPTIONS
-    These options will be used as default when creating a new backup config file (along with -t and -k)
+    These options will be used as default when creating a new Backup Config File (along with -t and -k)
 
     -r borg_repo
-      Full Borg+SSH address where to create new repositories for the accounts
+      Full Borg+SSH address where to create new repositories for the account
       [Example] mailbackup@mybackups.example.com:
       [Example] mailbackup@mybackups.example.com:myrepos
 
     -s path
-      Path of a folder to skip when backuping data from accounts
+      Path of a folder to skip when backuping the account data
       (can be a POSIX BRE regex for grep between ^ and $)
       Repeat this option as many times as necessary to exclude different kind of folders
       [Default] No exclusion
       [Example] -s /Briefcase/movies -s '/Inbox/list-.*' -s '.*/nobackup'
 
-    -e ASSET
-      Do a partial backup, by excluding some settings/data
-      Repeat this option as many times as necessary to exclude more than only one asset
+    -i
+      Do not backup the data of the account (ie. folders, mails, contacts, calendars, briefcase, tasks, etc)
+      This option means that "-i accounts_settings" will be passed when backuping the account
       [Default] Everything is backuped
-      [Example] -e domains -e data
-
-      ASSET is restricted to:
-        aliases
-        signatures
-        filters
-        data
 
   BACKUP CONFIG FILES
     Every account to backup has to be associated to a config file for its backup
@@ -163,7 +144,7 @@ function exit_usage() {
     (1) Backup everything to mailbackup@mybackups.example.com (using sshkey.priv and port 2222).
         Server-related data will be backuped in the (already existing) :main Borg repo
         (using the -z passphrase) and the users' repos will be created in :users/
-        (when no backup config file already exists for them in /opt/zimbra_borgackup/configs/)
+        (when no Backup Config File already exists for them in /opt/zimbra_borgackup/configs/)
 
         zimbra-borg-backup.sh\
           -a mailbackup@mybackups.example.com:main\\
@@ -172,11 +153,11 @@ function exit_usage() {
           -t 2222\\
           -r mailbackup@mybackups.example.com:users/
 
-    (2) Backup only the account jdoe@example.com but not the server-related data.
-        If there is a backup config file named jdoe@example.com already existing,
+    (2) Backup only the account jdoe@example.com, not the other ones
+        If there is a Backup Config File named jdoe@example.com already existing,
         the Borg server described in it will be used. Otherwise, it will be backuped
         on mybackups.example.com (using sshkey.priv and port 2222) in users/<hash>,
-        and a backup config file will be created in /opt/zimbra_borgackup/configs/
+        and a Backup Config File will be created in /opt/zimbra_borgackup/configs/
 
         zimbra-borg-backup.sh\
           -a mailbackup@mybackups.example.com:main\\
@@ -184,7 +165,6 @@ function exit_usage() {
           -k /root/borg/sshkey.priv\\
           -t 2222\\
           -r mailbackup@mybackups.example.com:users/\\
-          -E server\\
           -m jdoe@example.com
 
 USAGE
@@ -237,7 +217,7 @@ function createAccountBackupConfigFile() {
 
   # From this point, spaces in option values are no more preserved :(
   if [ "${#_backups_options[@]}" -gt 0 ]; then
-    backup_options=$(printf '%s ' "${_backups_options[@]}")
+    backup_options=$(printf '%q ' "${_backups_options[@]}")
   fi
 
   if [ "${_borg_repo_accounts: -1}" = ':' ]; then
@@ -268,9 +248,9 @@ function borgBackupMain() {
       log_warn "The backup on the Borg server might *NOT* be up do date"
     else
       log_info "Backuping using zimbra-backup.sh"
-      zimbra-backup.sh -d "${_debug_mode}" -e accounts -b "${_borg_local_folder_tmp}"
+      zimbra-backup.sh -d "${_debug_mode}" -i server_settings -b "${_borg_local_folder_tmp}"
 
-      # Save at the same time all backup config files in a borg/ folder
+      # Save at the same time all Backup Config Files in a borg/ folder
       install -b -m 0700 -o "${_zimbra_user}" -g "${_zimbra_group}" -d "${_borg_local_folder_tmp}/borg/"
       cp -a "${_borg_local_folder_configs}" "${_borg_local_folder_tmp}/borg/"
 
@@ -300,7 +280,7 @@ function borgBackupAccount() {
   local new_archive="$(date +'%Y-%m-%d')"
 
   if [ ! -f "${backup_file}" ]; then
-    log_info "${email}: Creating a backup config file with default options"
+    log_info "${email}: Creating a Backup Config File with default options"
     createAccountBackupConfigFile "${email}" "${backup_file}"
   fi
 
@@ -325,7 +305,7 @@ function borgBackupAccount() {
       log_warn "${email}: The backup on the Borg server might *NOT* be up do date"
     else
       log_info "${email}: Backuping using zimbra-backup.sh"
-      zimbra-backup.sh ${backup_options} -d "${_debug_mode}" -e all_except_accounts -b "${_borg_local_folder_tmp}" -m "${email}"
+      zimbra-backup.sh ${backup_options} -d "${_debug_mode}" -i accounts_settings -i accounts_data -b "${_borg_local_folder_tmp}" -m "${email}"
 
       log_info "${email}: Sending data to Borg (new archive ${new_archive} in the account repo)"
       pushd "${_borg_local_folder_tmp}/accounts/${email}" > /dev/null
@@ -363,8 +343,6 @@ _borg_repo_ssh_port=22
 
 _backups_include_accounts=
 _backups_exclude_accounts=
-_exclude_main=false
-_exclude_accounts=false
 _accounts_to_backup=
 _backups_options=()
 
@@ -377,7 +355,7 @@ trap 'exit 1' INT
 ### OPTIONS ###
 ###############
 
-while getopts 'm:x:lc:p:u:g:E:a:z:t:k:r:s:e:d:h' opt; do
+while getopts 'm:x:lc:p:u:g:a:z:t:k:r:s:i:d:h' opt; do
   case "${opt}" in
     m) _backups_include_accounts=$(echo -En ${_backups_include_accounts} ${OPTARG}) ;;
     x) _backups_exclude_accounts=$(echo -En ${_backups_exclude_accounts} ${OPTARG}) ;;
@@ -386,23 +364,13 @@ while getopts 'm:x:lc:p:u:g:E:a:z:t:k:r:s:e:d:h' opt; do
     p) _zimbra_main_path="${OPTARG%/}" ;;
     u) _zimbra_user="${OPTARG}" ;;
     g) _zimbra_group="${OPTARG}" ;;
-    E) case "${OPTARG}" in
-         server) _exclude_main=true ;;
-         accounts) _exclude_accounts=true ;;
-         *) log_err "Value <${OPTARG}> not supported by option -E"; exit 1 ;;
-       esac ;;
     a) _borg_repo_main="${OPTARG%/}" ;;
     z) _borg_repo_main_passphrase="${OPTARG%/}" ;;
     t) _borg_repo_ssh_port="${OPTARG}" ;;
     k) _borg_repo_ssh_key="${OPTARG}" ;;
     r) _borg_repo_accounts="${OPTARG%/}" ;;
     s) _backups_options+=(-s "${OPTARG}") ;;
-    e) for subopt in ${OPTARG}; do
-         case "${subopt}" in
-           aliases|signatures|filters|data) _backups_options+=(-e "${OPTARG}") ;;
-           *) log_err "Value <${subopt}> not supported by option -e"; exit 1 ;;
-         esac
-       done ;;
+    i) _backups_options+=(-i accounts_settings) ;;
     d) _debug_mode="${OPTARG}" ;;
     h) exit_usage 0 ;;
     \?) exit_usage 1 ;;
@@ -443,6 +411,11 @@ if [ -n "${_backups_include_accounts}" -a -n "${_backups_exclude_accounts}" ]; t
   exit 1
 fi
 
+if (printf '%s\n' "${_backups_options[@]}" | grep -qw -- -s) && (printf '%s\n' "${_backups_options[@]}" | grep -qw -- -i); then
+  log_err "Option -s is not usable when the data of the accounts is not intended to be backuped (see -i)"
+  exit 1
+fi
+
 if [ ! -d "${_zimbra_main_path}" -o ! -x "${_zimbra_main_path}" ]; then
   log_err "Zimbra path <${_zimbra_main_path}> doesn't exist, is not a directory or is not executable"
   exit 1
@@ -460,34 +433,30 @@ install -b -m 0700 -o "${_zimbra_user}" -g "${_zimbra_group}" -d "${_borg_local_
 log_debug "Renew the TMP folder"
 emptyTmpFolder
 
-${_exclude_main} || {
-  log_info "Backuping server-related data"
-  borgBackupMain
-}
+log_info "Backuping server-side settings and Backup Config Files"
+borgBackupMain
 
-${_exclude_accounts} || {
-  if [ -z "${_backups_include_accounts}" ]; then
-    log_info "Preparing for accounts backuping"
-  fi
+if [ -z "${_backups_include_accounts}" ]; then
+  log_info "Preparing for accounts backuping"
+fi
 
-  _accounts_to_backup=$(selectAccountsToBackup "${_backups_include_accounts}" "${_backups_exclude_accounts}")
+_accounts_to_backup=$(selectAccountsToBackup "${_backups_include_accounts}" "${_backups_exclude_accounts}")
 
-  if [ -z "${_accounts_to_backup}" ]; then
-    log_debug "No account to backup"
-  else
-    log_debug "Accounts to backup: ${_accounts_to_backup}"
+if [ -z "${_accounts_to_backup}" ]; then
+  log_debug "No account to backup"
+else
+  log_debug "Accounts to backup: ${_accounts_to_backup}"
 
-    resetAccountProcessDuration
+  resetAccountProcessDuration
 
-    # Backup accounts
-    for email in ${_accounts_to_backup}; do
-      log_info "Backuping account <${email}>"
-      borgBackupAccount "${email}"
-    done
+  # Backup accounts
+  for email in ${_accounts_to_backup}; do
+    log_info "Backuping account <${email}>"
+    borgBackupAccount "${email}"
+  done
 
-    showAccountProcessDuration
-  fi
-}
+  showAccountProcessDuration
+fi
 
 showFullProcessDuration
 
