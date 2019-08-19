@@ -314,6 +314,8 @@ function borgBackupAccount() {
       FASTZMPROV_TMP="${_fastprompt_zmprov_tmp}" FASTZMMAILBOX_TMP="${_fastprompt_zmmailbox_tmp}" \
         zimbra-backup.sh ${backup_options} -d "${_debug_mode}" -i accounts_settings -i accounts_data -b "${_borg_local_folder_tmp}" -m "${email}"
 
+      mv "${_borg_local_folder_tmp}/backup_info" "${_borg_local_folder_tmp}/accounts/${email}"
+
       log_info "${email}: Sending data to Borg (new archive ${new_archive} in the account repo)"
       pushd "${_borg_local_folder_tmp}/accounts/${email}" > /dev/null
       borg create ${_borg_debug_mode} --stats --compression lz4 "${borg_repo}::{now:%Y-%m-%d}" . || {

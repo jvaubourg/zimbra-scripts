@@ -472,3 +472,80 @@ Clone me into */usr/share/zimbra-scripts/* and do symbolic links for the .sh fil
             -k /root/borg/sshkey.priv\
             -t 2222\
             -m jdoe@example.com
+
+## Backup's Anatomy
+
+### Without using Borg
+
+    server/domains/example.com
+    server/domains/example.com/dkim_info
+    server/lists/foobars@example.com
+    server/lists/foobars@example.com/members
+    server/lists/foobars@example.com/aliases
+    accounts/foo@example.com/settings/all_settings
+    accounts/foo@example.com/settings/identity/cn
+    accounts/foo@example.com/settings/identity/givenName
+    accounts/foo@example.com/settings/identity/displayName
+    accounts/foo@example.com/settings/identity/userPassword
+    accounts/foo@example.com/settings/aliases
+    accounts/foo@example.com/settings/signatures/1.txt
+    accounts/foo@example.com/settings/signatures/2.html
+    accounts/foo@example.com/settings/others/001-zimbraMailSieveScript
+    accounts/foo@example.com/settings/others/002-zimbraFeatureOutOfOfficeReplyEnabled
+    accounts/foo@example.com/settings/others/003-zimbraPrefOutOfOfficeCacheDuration
+    accounts/foo@example.com/settings/others/004-zimbraPrefOutOfOfficeStatusAlertOnLogin
+    accounts/foo@example.com/data/excluded_data_paths_full
+    accounts/foo@example.com/data/excluded_data_paths
+    accounts/foo@example.com/data/data.tar
+    backup_info/command_line
+    backup_info/date
+    backup_info/zimbra_version
+    backup_info/centos_version
+    backup_info/scripts
+    backup_info/scripts/zimbra-backup.sh
+    backup_info/scripts/zimbra-restore.sh
+
+### Using Borg
+
+Main repository:
+
+    server/domains/example.com
+    server/domains/example.org
+    server/domains/example.org/dkim_info
+    server/lists/foobars@example.com
+    server/lists/foobars@example.com/members
+    server/lists/foobars@example.com/aliases
+    borg/configs/foo@example.com
+    borg/configs/bar@example.org
+    backup_info/command_line
+    backup_info/date
+    backup_info/zimbra_version
+    backup_info/centos_version
+    backup_info/scripts
+    backup_info/scripts/zimbra-backup.sh
+    backup_info/scripts/zimbra-restore.sh
+
+Account repository:
+
+    settings/all_settings
+    settings/identity/cn
+    settings/identity/givenName
+    settings/identity/displayName
+    settings/identity/userPassword
+    settings/aliases
+    settings/signatures/1.txt
+    settings/signatures/2.html
+    settings/others/001-zimbraMailSieveScript
+    settings/others/002-zimbraFeatureOutOfOfficeReplyEnabled
+    settings/others/003-zimbraPrefOutOfOfficeCacheDuration
+    settings/others/004-zimbraPrefOutOfOfficeStatusAlertOnLogin
+    data/excluded_data_paths_full
+    data/excluded_data_paths
+    data/data.tar
+    backup_info/command_line
+    backup_info/date
+    backup_info/zimbra_version
+    backup_info/centos_version
+    backup_info/scripts
+    backup_info/scripts/zimbra-backup.sh
+    backup_info/scripts/zimbra-restore.sh
