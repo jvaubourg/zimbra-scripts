@@ -127,7 +127,7 @@ function exit_usage() {
         :main repo. Last archive of every Borg repo is used
 
         zimbra-borg-restore.sh\\
-          -a borg@testrestore.choca.pics:main\\
+          -a mailbackup@mybackups.example.com:main\\
           -z 'JRX2jVkRDpH6+OQ9hw/7sWn4F0OBps42I2TQ6DvRIgI='\\
           -k /root/borg/sshkey.priv\\
           -t 2222
@@ -136,7 +136,7 @@ function exit_usage() {
         not the other ones
 
         zimbra-borg-restore.sh\\
-          -a borg@testrestore.choca.pics:main\\
+          -a mailbackup@mybackups.example.com:main\\
           -z 'JRX2jVkRDpH6+OQ9hw/7sWn4F0OBps42I2TQ6DvRIgI='\\
           -k /root/borg/sshkey.priv\\
           -t 2222\\
