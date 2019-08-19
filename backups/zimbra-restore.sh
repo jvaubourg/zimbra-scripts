@@ -373,7 +373,7 @@ function zimbraRestoreAccountAliases() {
 # Create all the signatures saved in the backup for this account
 function zimbraRestoreAccountSignatures() {
   local email="${1}"
-  local backup_path="${_backups_path}/accounts/${email}/signatures"
+  local backup_path="${_backups_path}/accounts/${email}/settings/signatures"
 
   checkBackupedDirectoryAccess "${backup_path}"
   local signatures=$(find "${backup_path}" -mindepth 1 -maxdepth 1 -type f -printf '%f ' 2> /dev/null || true)
