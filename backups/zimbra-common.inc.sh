@@ -131,7 +131,7 @@ function execFastPrompt() {
   done < <(tail -f "${out_file}" 2> /dev/null || true)
 
   # Display the result of the subcommand
-  if grep '^ERROR: ' "${out_file}" >&2; then
+  if grep '^ERROR: ' "${out_file}" | grep -v "${prompt_delimiter}" >&2; then
     false
   else
     head -n -3 "${out_file}" | tail -n +2
@@ -157,7 +157,7 @@ function initFastPrompts() {
   if [ -z "${_fastprompt_zmprov_tmp}" ]; then
     _fastprompt_zmprov_tmp=$(mktemp -d)
     mkfifo "${_fastprompt_zmprov_tmp}/cmd"
-    sudo -u "${_zimbra_user}" env "${path}" stdbuf -o0 -e0 zmprov --ldap < <(tail -f "${_fastprompt_zmprov_tmp}/cmd" || true) >> "${_fastprompt_zmprov_tmp}/out" &
+    sudo -u "${_zimbra_user}" env "${path}" stdbuf -o0 -e0 zmprov --ldap < <(tail -f "${_fastprompt_zmprov_tmp}/cmd" || true) &>> "${_fastprompt_zmprov_tmp}/out" &
     _fastprompt_zmprov_pid="${!}"
   fi
 
@@ -165,7 +165,7 @@ function initFastPrompts() {
   if [ -z "${_fastprompt_zmmailbox_tmp}" ]; then
     _fastprompt_zmmailbox_tmp=$(mktemp -d)
     mkfifo "${_fastprompt_zmmailbox_tmp}/cmd"
-    sudo -u "${_zimbra_user}" env "${path}" stdbuf -o0 -e0 zmmailbox --zadmin < <(tail -f "${_fastprompt_zmmailbox_tmp}/cmd" || true) >> "${_fastprompt_zmmailbox_tmp}/out" &
+    sudo -u "${_zimbra_user}" env "${path}" stdbuf -o0 -e0 zmmailbox --zadmin < <(tail -f "${_fastprompt_zmmailbox_tmp}/cmd" || true) &>> "${_fastprompt_zmmailbox_tmp}/out" &
     _fastprompt_zmmailbox_pid="${!}"
   fi
 }
