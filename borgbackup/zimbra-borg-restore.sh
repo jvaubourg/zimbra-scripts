@@ -255,7 +255,9 @@ function borgCopyMain() {
 
 function restoreMain() {
   log_info "Restoring using zimbra-restore.sh"
-  zimbra-restore.sh -d "${_debug_mode}" -i server_settings -b "${_borg_local_folder_tmp}"
+
+  FASTZMPROV_TMP="${_fastprompt_zmprov_tmp}" FASTZMMAILBOX_TMP="${_fastprompt_zmmailbox_tmp}" \
+    zimbra-restore.sh -d "${_debug_mode}" -i server_settings -b "${_borg_local_folder_tmp}"
 }
 
 function selectAccountsToBorgRestore() {
@@ -265,7 +267,7 @@ function selectAccountsToBorgRestore() {
   mount -o bind "${_borg_local_folder_configs}" "${mount_folder}"
   _used_system_mountpoints["${mount_folder}"]=1
 
-  accounts_to_restore=$(selectAccountsToRestore "${_backups_include_accounts}" "${_backups_exclude_accounts}")
+  accounts_to_restore=$(selectAccountsToRestore "${_backups_include_accounts}" "${_backups_exclude_accounts}" || true)
 
   umount "${mount_folder}"
   unset _used_system_mountpoints["${mount_folder}"]
@@ -337,7 +339,9 @@ function borgRestoreAccount() {
   _restore_options+=(-i accounts_data)
   _restore_options+=(-b "${_borg_local_folder_tmp}")
   _restore_options+=(-m "${email}")
-  zimbra-restore.sh "${_restore_options[@]}"
+
+  FASTZMPROV_TMP="${_fastprompt_zmprov_tmp}" FASTZMMAILBOX_TMP="${_fastprompt_zmmailbox_tmp}" \
+    zimbra-restore.sh "${_restore_options[@]}"
 
   # Umount repository and bound account folder
   umount "${account_folder}"
@@ -456,6 +460,8 @@ fi
 ### MAIN SCRIPT ###
 ###################
 
+initFastPrompts
+
 # Create folders used in this script
 install -b -m 0700 -o "${_zimbra_user}" -g "${_zimbra_group}" -d "${_borg_local_folder_main}"
 install -b -m 0700 -o "${_zimbra_user}" -g "${_zimbra_group}" -d "${_borg_local_folder_configs}"
@@ -473,7 +479,7 @@ borgCopyMain
 }
 
 (${_include_all} || ${_include_accounts_full}) && {
-  _accounts_to_restore=$(selectAccountsToBorgRestore)
+  _accounts_to_restore=$(selectAccountsToBorgRestore || true)
 
   if [ -z "${_accounts_to_restore}" ]; then
     log_debug "No account to restore"

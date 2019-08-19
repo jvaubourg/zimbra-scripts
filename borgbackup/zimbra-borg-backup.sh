@@ -249,7 +249,9 @@ function borgBackupMain() {
       log_warn "The backup on the Borg server might *NOT* be up do date"
     else
       log_info "Backuping using zimbra-backup.sh"
-      zimbra-backup.sh -d "${_debug_mode}" -i server_settings -b "${_borg_local_folder_tmp}"
+
+      FASTZMPROV_TMP="${_fastprompt_zmprov_tmp}" FASTZMMAILBOX_TMP="${_fastprompt_zmmailbox_tmp}" \
+        zimbra-backup.sh -d "${_debug_mode}" -i server_settings -b "${_borg_local_folder_tmp}"
 
       # Save at the same time all Backup Config Files in a borg/ folder
       install -b -m 0700 -o "${_zimbra_user}" -g "${_zimbra_group}" -d "${_borg_local_folder_tmp}/borg/"
@@ -306,7 +308,9 @@ function borgBackupAccount() {
       log_warn "${email}: The backup on the Borg server might *NOT* be up do date"
     else
       log_info "${email}: Backuping using zimbra-backup.sh"
-      zimbra-backup.sh ${backup_options} -d "${_debug_mode}" -i accounts_settings -i accounts_data -b "${_borg_local_folder_tmp}" -m "${email}"
+
+      FASTZMPROV_TMP="${_fastprompt_zmprov_tmp}" FASTZMMAILBOX_TMP="${_fastprompt_zmmailbox_tmp}" \
+        zimbra-backup.sh ${backup_options} -d "${_debug_mode}" -i accounts_settings -i accounts_data -b "${_borg_local_folder_tmp}" -m "${email}"
 
       log_info "${email}: Sending data to Borg (new archive ${new_archive} in the account repo)"
       pushd "${_borg_local_folder_tmp}/accounts/${email}" > /dev/null
@@ -428,6 +432,8 @@ fi
 ### MAIN SCRIPT ###
 ###################
 
+initFastPrompts
+
 # Create folders used in this script
 install -b -m 0700 -o "${_zimbra_user}" -g "${_zimbra_group}" -d "${_borg_local_folder_main}"
 install -b -m 0700 -o "${_zimbra_user}" -g "${_zimbra_group}" -d "${_borg_local_folder_configs}"
@@ -442,7 +448,7 @@ if [ -z "${_backups_include_accounts}" ]; then
   log_info "Preparing for accounts backuping"
 fi
 
-_accounts_to_backup=$(selectAccountsToBackup "${_backups_include_accounts}" "${_backups_exclude_accounts}")
+_accounts_to_backup=$(selectAccountsToBackup "${_backups_include_accounts}" "${_backups_exclude_accounts}" || true)
 
 if [ -z "${_accounts_to_backup}" ]; then
   log_debug "No account to backup"

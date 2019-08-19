@@ -17,6 +17,13 @@ _existing_accounts=
 _process_timer=
 _debug_mode=0
 
+# Fastprompt processes
+_fastprompt_zmprov_tmp=
+_fastprompt_zmprov_pid=
+_fastprompt_zmmailbox_tmp=
+_fastprompt_zmmailbox_pid=
+_fastprompt_zmmailbox_email=
+
 # Will be filled by zimbraGetMainDomain
 _zimbra_install_domain=
 
@@ -38,12 +45,20 @@ function trap_exit() {
 
   trap - EXIT TERM ERR INT
 
-  if [ -n "${zmprov_PID-}" ]; then
+  if [ -n "${_fastprompt_zmprov_pid}" ]; then
     log_debug "Close the fast zmprov prompt"
 
-    echo exit >&4
-    wait "${zmprov_PID}"
-    unset zmprov_PID
+    echo exit > "${_fastprompt_zmprov_tmp}/cmd"
+    wait "${_fastprompt_zmprov_pid}"
+    _fastprompt_zmprov_pid=
+  fi
+
+  if [ -n "${_fastprompt_zmmailbox_pid}" ]; then
+    log_debug "Close the fast zmmailbox prompt"
+
+    echo exit > "${_fastprompt_zmmailbox_tmp}/cmd"
+    wait "${_fastprompt_zmmailbox_pid}"
+    _fastprompt_zmmailbox_pid=
   fi
 
   if [ "${status}" -ne 0 ]; then
@@ -88,42 +103,57 @@ function setZimbraPermissions() {
   chown -R "${_zimbra_user}:${_zimbra_group}" "${folder}"
 }
 
-# Open a prompt for zmprov that can be feed through stdin
-# This is way faster than calling the zmprov command every time
-function execFastZmprovCmd() {
-  # Depends on the cmd variable like execZimbraCmd
+function execFastPrompt() {
+  local cmd_pipe="${1}"
+  local out_file="${2}"
+  local prompt_delimiter=$(echo "${RANDOM}" | sha256sum | cut -d' ' -f1)
 
-  # Start the prompt as a coprocess
-  if [ -z "${zmprov_PID-}" ]; then
-    coproc zmprov { sudo -u "${_zimbra_user}" env "${path}" stdbuf -o0 -e0 zmprov --ldap 2>&1; }
-    exec 3<&${zmprov[0]} 4>&${zmprov[1]}
+  :> "${out_file}"
+
+  printf '%q ' "${cmd[@]:1}" | sed "s/ \\$'/'/g" > "${cmd_pipe}"
+  printf '\n%s\n' "${prompt_delimiter}" > "${cmd_pipe}"
+
+  while read out_line; do
+    if [ -z "${prompt_delimiter}" ]; then
+      break
+    elif [[ "${out_line}" =~ "${prompt_delimiter}" ]]; then
+      prompt_delimiter=
+    fi
+  done < <(tail -f "${out_file}" || true)
+
+  if grep '^ERROR: ' "${out_file}" >&2; then
+    false
+  else
+    head -n -3 "${out_file}" | tail -n +2
+  fi
+}
+
+function zmmailboxSelectMailbox() {
+  local email="${1}"
+
+  if [ "${_fastprompt_zmmailbox_email}" != "${email}" ]; then
+    local cmd=(fastzmmailbox selectMailbox "${email}")
+    execZimbraCmd cmd > /dev/null
+    _fastprompt_zmmailbox_email="${email}"
+  fi
+}
+
+function initFastPrompts() {
+  # fastzmprov
+  if [ -z "${_fastprompt_zmprov_tmp}" ]; then
+    _fastprompt_zmprov_tmp=$(mktemp -d)
+    mkfifo "${_fastprompt_zmprov_tmp}/cmd"
+    sudo -u "${_zimbra_user}" env "${path}" stdbuf -o0 -e0 zmprov --ldap < <(tail -f "${_fastprompt_zmprov_tmp}/cmd" || true) >> "${_fastprompt_zmprov_tmp}/out" &
+    _fastprompt_zmprov_pid="${!}"
   fi
 
-  # Feed the prompt with a command
-  printf '%q ' "${cmd[@]:1}" >&4
-
-  # The first new-line char commits the current command
-  # The second one commits an empty command to have an empty prompt line just after
-  # the end of the output
-  printf '\n\n' >&4
-
-  # Read the output until meeting the empty prompt line
-  local error_detected=false
-  while read line; do
-    if [[ "${line}" =~ ^prov\>$ ]]; then
-      break
-
-    elif [[ "${line}" =~ ^ERROR:\ .+ ]]; then
-      error_detected=true
-      echo "${line}" >&2
-
-    # Do not echo the command line
-    elif ! [[ "${line}" =~ ^prov\>.+ ]]; then
-      echo "${line}"
-    fi
-  done <&3
-
-  ! ${error_detected}
+  # fastzmmailbox
+  if [ -z "${_fastprompt_zmmailbox_tmp}" ]; then
+    _fastprompt_zmmailbox_tmp=$(mktemp -d)
+    mkfifo "${_fastprompt_zmmailbox_tmp}/cmd"
+    sudo -u "${_zimbra_user}" env "${path}" stdbuf -o0 -e0 zmmailbox --zadmin < <(tail -f "${_fastprompt_zmmailbox_tmp}/cmd" || true) >> "${_fastprompt_zmmailbox_tmp}/out" &
+    _fastprompt_zmmailbox_pid="${!}"
+  fi
 }
 
 function execZimbraCmd() {
@@ -134,13 +164,15 @@ function execZimbraCmd() {
   local path="PATH=/sbin:/bin:/usr/sbin:/usr/bin:${_zimbra_main_path}/bin:${_zimbra_main_path}/libexec"
 
   if [ "${_debug_mode}" -ge 2 ]; then
-    log_debug "CMD: ${cmd[*]}"
+    log_debug "CMD: ${cmd[@]}"
   fi
 
   if [ "${cmd[0]}" = fastzmprov ]; then
-    execFastZmprovCmd
+    execFastPrompt "${_fastprompt_zmprov_tmp}/cmd" "${_fastprompt_zmprov_tmp}/out"
+  elif [ "${cmd[0]}" = fastzmmailbox ]; then
+    execFastPrompt "${_fastprompt_zmmailbox_tmp}/cmd" "${_fastprompt_zmmailbox_tmp}/out"
   else
-    # Using sudo instead of su -c and an array instead of a string prevent code injections
+    # Using sudo instead of su -c and an array instead of a string prevent code injection
     sudo -u "${_zimbra_user}" env "${path}" "${cmd[@]}"
   fi
 }
@@ -160,7 +192,7 @@ function selectAccountsToBackup() {
   # Backup either accounts provided with -m, either all accounts,
   # either all accounts minus the ones provided with -x
   if [ -z "${accounts_to_backup}" ]; then
-    accounts_to_backup=$(zimbraGetAccounts)
+    accounts_to_backup=$(zimbraGetAccounts || true)
     log_debug "Existing accounts: ${accounts_to_backup}"
 
     if [ -n "${exclude_accounts}" ]; then
@@ -220,7 +252,7 @@ function selectAccountsToRestore() {
 function zimbraGetMainDomain() {
   local cmd=(fastzmprov getConfig zimbraDefaultDomainName)
 
-  execZimbraCmd cmd | sed "s/^zimbraDefaultDomainName: //"
+  execZimbraCmd cmd | sed 's/^zimbraDefaultDomainName: //'
 }
 
 function zimbraGetAdminAccounts() {
@@ -299,31 +331,35 @@ function zimbraGetAccountSettingsFile() {
 
 function zimbraGetAccountFoldersList() {
   local email="${1}"
-  local cmd=(zmmailbox --zadmin --mailbox "${email}" getAllFolders)
+  zmmailboxSelectMailbox "${email}"
 
+  local cmd=(fastzmmailbox getAllFolders)
   execZimbraCmd cmd | awk '/\// { print $5 }'
 }
 
 function zimbraGetAccountDataSize() {
   local email="${1}"
-  local cmd=(zmmailbox --zadmin --mailbox "${email}" getMailboxSize)
+  zmmailboxSelectMailbox "${email}"
 
+  local cmd=(fastzmmailbox getMailboxSize)
   execZimbraCmd cmd | tr -d ' '
 }
 
 function zimbraGetAccountData() {
   local email="${1}"
-  local filter_query="${2}"
-  local cmd=(zmmailbox --zadmin --mailbox "${email}" getRestURL "//?fmt=tar${filter_query}")
+  zmmailboxSelectMailbox "${email}"
 
+  local filter_query="${2}"
+  local cmd=(fastzmmailbox getRestURL "//?fmt=tar${filter_query}")
   execZimbraCmd cmd
 }
 
 function zimbraGetFolderAttributes() {
   local email="${1}"
-  local path="${2}"
-  local cmd=(zmmailbox --zadmin --mailbox "${email}" getFolder "${path}")
+  zmmailboxSelectMailbox "${email}"
 
+  local path="${2}"
+  local cmd=(getFolder "${path}")
   execZimbraCmd cmd
 }
 
@@ -336,7 +372,7 @@ function zimbraIsAccountExisting() {
   local email="${1}"
 
   if [ -z "${_existing_accounts}" ]; then
-    _existing_accounts=$(zimbraGetAccounts)
+    _existing_accounts=$(zimbraGetAccounts || true)
     log_debug "Already existing accounts: ${_existing_accounts}"
   fi
 
@@ -481,8 +517,9 @@ function zimbraSetAccountData() {
 
 function zimbraCreateDataFolder() {
   local email="${1}"
-  local folder="${2}"
-  local cmd=(zmmailbox --zadmin --mailbox "${email}" createFolder "${folder}")
+  zmmailboxSelectMailbox "${email}"
 
+  local folder="${2}"
+  local cmd=(fastzmmailbox createFolder "${folder}")
   execZimbraCmd cmd | hideReturnedId
 }

@@ -221,7 +221,7 @@ function zimbraRestoreDomainsDkim() {
         # Unfortunately there is no way in Zimbra to restore an already existing private key
         # so for now, we just generate a new one
         log_info "Server/Settings: Generating new DKIM keys for domain <${domain}>"
-        local dkim_pubkey=$(zimbraCreateDkim "${domain}")
+        local dkim_pubkey=$(zimbraCreateDkim "${domain}" || true)
 
         log_info "${dkim_pubkey}"
         _generated_dkim_keys["${domain}"]="${dkim_pubkey}"
@@ -515,6 +515,14 @@ if [ "${_debug_mode}" -ge 3 ]; then
   set -o xtrace
 fi
 
+if [ -d "${FASTZMPROV_TMP-}" ]; then
+  _fastprompt_zmprov_tmp="${FASTZMPROV_TMP}"
+fi
+
+if [ -d "${FASTZMMAILBOX_TMP-}" ]; then
+  _fastprompt_zmmailbox_tmp="${FASTZMMAILBOX_TMP}"
+fi
+
 if [ -n "${_backups_include_accounts}" -a -n "${_backups_exclude_accounts}" ]; then
   log_err "Options -m and -x are not compatible"
   exit 1
@@ -546,8 +554,10 @@ fi
 ### MAIN SCRIPT ###
 ###################
 
+initFastPrompts
+
 log_info "Getting Zimbra main domain"
-_zimbra_install_domain=$(zimbraGetMainDomain)
+_zimbra_install_domain=$(zimbraGetMainDomain || true)
 log_debug "Zimbra main domain is <${_zimbra_install_domain}>"
 
 (${_include_all} || ${_include_server_settings}) && {
@@ -562,7 +572,7 @@ log_debug "Zimbra main domain is <${_zimbra_install_domain}>"
 }
 
 (${_include_all} || ${_include_accounts_settings} || ${_include_accounts_data}) && {
-  _accounts_to_restore=$(selectAccountsToRestore "${_backups_include_accounts}" "${_backups_exclude_accounts}")
+  _accounts_to_restore=$(selectAccountsToRestore "${_backups_include_accounts}" "${_backups_exclude_accounts}" || true)
 
   if [ -z "${_accounts_to_restore}" ]; then
     log_debug "No account to restore"
@@ -626,7 +636,7 @@ log_debug "Zimbra main domain is <${_zimbra_install_domain}>"
 
         # Restore data
         (${_include_all} || ${_include_accounts_data}) && {
-          log_info "${email}: Restoring data ($(getAccountDataFileSize "${email}") compressed)"
+          log_info "${email}: Restoring data ($(getAccountDataFileSize "${email}" || true) compressed)"
           zimbraRestoreAccountData "${email}"
 
           log_debug "${email}/Data: Restore excluded paths as empty folders"

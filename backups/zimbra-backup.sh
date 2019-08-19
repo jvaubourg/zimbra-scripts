@@ -176,7 +176,7 @@ function selectAccountDataPathsToExclude() {
   install -o "${_zimbra_user}" -g "${_zimbra_group}" -d "${backup_path}"
 
   if [ "${#_backups_exclude_data_regexes[@]}" -gt 0 ]; then
-    local folders=$(zimbraGetAccountFoldersList "${email}")
+    local folders=$(zimbraGetAccountFoldersList "${email}" || true)
 
     for regex in "${_backups_exclude_data_regexes[@]}"; do
       local selected_folders=$(printf '%s' "${folders}" | (grep -- "^${regex}\\(\$\\|/.*\\)" || true))
@@ -192,7 +192,7 @@ function selectAccountDataPathsToExclude() {
           # We need to be sure that some selected folders are not included in other ones
           while [ -n "${selected_folders}" ]; do
             local first=$(printf '%s' "${selected_folders}" | head -n 1)
-            local first_escaped=$(escapeGrepStringRegexChars "${first}")
+            local first_escaped=$(escapeGrepStringRegexChars "${first}" || true)
 
             # The list of folders is sorted by Zimbra so the first path cannot be included in another one
             log_debug "${email}/Data: Folder <${first}> will be excluded"
@@ -220,7 +220,7 @@ function getAccountExcludeDataSize() {
   local total_size_human=
 
   for path in ${exclude_paths}; do
-    local size_attributes=$(zimbraGetFolderAttributes "${email}" "${path}" | grep '^\s\+"size":')
+    local size_attributes=$(zimbraGetFolderAttributes "${email}" "${path}" | grep '^\s\+"size":' || true)
     local size_bytes=$(printf '%s' "${size_attributes}" | sed 's/^.*:\s\+\([0-9]\+\).*$/\1/' | paste -sd+ | bc)
     total_size_bytes=$(( total_size_bytes + size_bytes ))
   done
@@ -237,7 +237,7 @@ function getAccountIncludeDataSize() {
   local exclude_size_human="${2}"
 
   local exclude_size_bytes=$(numfmt --from=iec --suffix=B "${exclude_size_human}" | tr -d B)
-  local data_size_bytes=$(zimbraGetAccountDataSize "${email}" | numfmt --from=iec --suffix=B | tr -d B)
+  local data_size_bytes=$(zimbraGetAccountDataSize "${email}" | numfmt --from=iec --suffix=B | tr -d B || true)
   local include_size_human=$(numfmt --to=iec --suffix=B "$(( data_size_bytes - exclude_size_bytes ))")
 
   printf '%s' "${include_size_human}"
@@ -271,7 +271,7 @@ function zimbraBackupServerAdmins() {
 function zimbraBackupServerDomains() {
   local backup_path="${_backups_path}/server/domains"
 
-  for domain in $(zimbraGetDomains); do
+  for domain in $(zimbraGetDomains || true); do
     install -o "${_zimbra_user}" -g "${_zimbra_group}" -d "${backup_path}/${domain}"
   done
 }
@@ -295,7 +295,7 @@ function zimbraBackupServerDomainsDkim() {
 
 # Save all existing mailing lists with their aliases and a list of their members
 function zimbraBackupServerLists() {
-  for list_email in $(zimbraGetLists); do
+  for list_email in $(zimbraGetLists || true); do
     local backup_path="${_backups_path}/server/lists/${list_email}"
     local backup_file=
 
@@ -449,8 +449,8 @@ function zimbraBackupAccountData() {
 
     local exclude_paths=$(< "${backup_path}/excluded_data_paths")
     local exclude_paths_count=$(wc -l "${backup_path}/excluded_data_paths" | awk '{ print $1 }')
-    local exclude_data_size=$(getAccountExcludeDataSize "${email}" "${exclude_paths}")
-    backup_data_size=$(getAccountIncludeDataSize "${email}" "${exclude_data_size}")
+    local exclude_data_size=$(getAccountExcludeDataSize "${email}" "${exclude_paths}" || true)
+    backup_data_size=$(getAccountIncludeDataSize "${email}" "${exclude_data_size}" || true)
 
     # Creating the filter query to exclude folders during the data export
     while read path; do
@@ -463,7 +463,7 @@ function zimbraBackupAccountData() {
   # No folder to exclude
   else
     log_debug "${email}/Data: Calculate total size (nothing to exclude)"
-    backup_data_size=$(zimbraGetAccountDataSize "${email}")
+    backup_data_size=$(zimbraGetAccountDataSize "${email}" || true)
   fi
 
   if [ -n "${filter_query}" ]; then
@@ -552,6 +552,14 @@ if [ "${_debug_mode}" -ge 3 ]; then
   set -o xtrace
 fi
 
+if [ -d "${FASTZMPROV_TMP-}" ]; then
+  _fastprompt_zmprov_tmp="${FASTZMPROV_TMP}"
+fi
+
+if [ -d "${FASTZMMAILBOX_TMP-}" ]; then
+  _fastprompt_zmmailbox_tmp="${FASTZMMAILBOX_TMP}"
+fi
+
 if [ -n "${_backups_include_accounts}" -a -n "${_backups_exclude_accounts}" ]; then
   log_err "Options -m and -x are not compatible"
   exit 1
@@ -583,6 +591,8 @@ fi
 ### MAIN SCRIPT ###
 ###################
 
+initFastPrompts
+
 (${_include_all} || ${_include_server_settings}) && {
   log_info "Server/Settings: Backuping admins list"
   zimbraBackupServerAdmins
@@ -602,7 +612,7 @@ fi
     log_info "Preparing for accounts backuping"
   fi
 
-  _accounts_to_backup=$(selectAccountsToBackup "${_backups_include_accounts}" "${_backups_exclude_accounts}")
+  _accounts_to_backup=$(selectAccountsToBackup "${_backups_include_accounts}" "${_backups_exclude_accounts}" || true)
 
   if [ -z "${_accounts_to_backup}" ]; then
     log_debug "No account to backup"
