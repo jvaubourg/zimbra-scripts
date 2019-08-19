@@ -108,7 +108,7 @@ Clone me into */usr/share/zimbra-scripts/* and do symbolic links for the .sh fil
       (4) Backup only the stuff related to the account of jdoe@example.com and nothing else
             zimbra-backup.sh -b /tmp/mybackups/ -i accounts_settings -i accounts_data -m jdoe@example.com
 
-### Remotly using zimbra-borg-backup.sh
+### Remotely using zimbra-borg-backup.sh
 
     ACCOUNTS
   
@@ -349,7 +349,7 @@ Clone me into */usr/share/zimbra-scripts/* and do symbolic links for the .sh fil
           (the domain example.com has to already exist, but not the account jdoe@example.com)
             zimbra-restore.sh -b /tmp/mybackups/ -i accounts_settings -i accounts_data -m jdoe@example.com
 
-### Remotly using zimbra-borg-restore.sh
+### Remotely using zimbra-borg-restore.sh
 
     ACCOUNTS
   
