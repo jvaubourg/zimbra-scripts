@@ -116,7 +116,8 @@ function execFastPrompt() {
   :> "${out_file}"
 
   # Submit the subcommand with an additional fake one
-  printf '%q ' "${cmd[@]:1}" | sed "s/ \\$'/'/g" > "${cmd_pipe}"
+  # Sed is used because Zimbra prompts don't support $'...' POSIX syntax
+  printf '%q ' "${cmd[@]:1}" | sed "s/ \\$'/ '/g" > "${cmd_pipe}"
   printf '\n%s\n' "${prompt_delimiter}" > "${cmd_pipe}"
 
   # Wait to see the fake subcommand, meaning that the processing of the real
