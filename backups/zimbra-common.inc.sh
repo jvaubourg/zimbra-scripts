@@ -18,7 +18,7 @@ _process_timer=
 _debug_mode=0
 
 # Fastprompt processes
-_disable_fastprompts=true
+_disable_fastprompts=false
 _fastprompt_zmprov_tmp=
 _fastprompt_zmprov_pid=
 _fastprompt_zmmailbox_tmp=
@@ -183,9 +183,9 @@ function execZimbraCmd() {
 
   if ${_disable_fastprompts}; then
     if [ "${cmd[0]}" = fastzmprov ]; then
-      cmd=( zmprov --ldap "${cmd[@]}" )
+      cmd=(zmprov --ldap "${cmd[@]:1}")
     elif [ "${cmd[0]}" = fastzmmailbox ]; then
-      cmd=( zmmailbox --zadmin --mailbox "${_fastprompt_zmmailbox_email}" "${cmd[@]}" )
+      cmd=(zmmailbox --zadmin --mailbox "${_fastprompt_zmmailbox_email}" "${cmd[@]:1}")
     fi
   fi
 
