@@ -128,7 +128,7 @@ function execFastPrompt() {
     elif [[ "${out_line}" =~ "${prompt_delimiter}" ]]; then
       prompt_delimiter=
     fi
-  done < <(tail -f "${out_file}" || true)
+  done < <(tail -f "${out_file}" 2> /dev/null || true)
 
   # Display the result of the subcommand
   if grep '^ERROR: ' "${out_file}" >&2; then

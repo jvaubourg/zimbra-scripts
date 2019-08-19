@@ -414,7 +414,7 @@ function zimbraRestoreAccountOtherSettings() {
       local value=$(< "${backup_file}")
       local field=${setting#*-}
 
-      zimbraSetAccountSetting "${email}" "${field}" "${value}"
+      zimbraSetAccountSetting "${email}" "${field}" "${value}" > /dev/null
     done
   else
     log_debug "${email}/Settings: No other backuped settings found"
