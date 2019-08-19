@@ -103,6 +103,9 @@ function setZimbraPermissions() {
   chown -R "${_zimbra_user}:${_zimbra_group}" "${folder}"
 }
 
+# Every Zimbra CLI command (zmprov, zmmailbox, etc) can be used with a prompt
+# Opening these prompts and feeding them with subcommands is way way faster
+# than executing the commands each time (only one Java VM instantiated)
 function execFastPrompt() {
   local cmd_pipe="${1}"
   local out_file="${2}"
@@ -110,9 +113,12 @@ function execFastPrompt() {
 
   :> "${out_file}"
 
+  # Submit the subcommand with an additional fake one
   printf '%q ' "${cmd[@]:1}" | sed "s/ \\$'/'/g" > "${cmd_pipe}"
   printf '\n%s\n' "${prompt_delimiter}" > "${cmd_pipe}"
 
+  # Wait to see the fake subcommand, meaning that the processing of the real
+  # real one is terminated
   while read out_line; do
     if [ -z "${prompt_delimiter}" ]; then
       break
@@ -121,6 +127,7 @@ function execFastPrompt() {
     fi
   done < <(tail -f "${out_file}" || true)
 
+  # Display the result of the subcommand
   if grep '^ERROR: ' "${out_file}" >&2; then
     false
   else
@@ -128,6 +135,7 @@ function execFastPrompt() {
   fi
 }
 
+# Switch from an account to another one in the prompt of zmmailbox
 function zmmailboxSelectMailbox() {
   local email="${1}"
 
@@ -138,6 +146,7 @@ function zmmailboxSelectMailbox() {
   fi
 }
 
+# Start the Java VM of the prompts we will have to use
 function initFastPrompts() {
   local path="PATH=/sbin:/bin:/usr/sbin:/usr/bin:${_zimbra_main_path}/bin:${_zimbra_main_path}/libexec"
 
@@ -158,13 +167,14 @@ function initFastPrompts() {
   fi
 }
 
+# Execute a Zimbra command with a shell or with a fast prompt
 function execZimbraCmd() {
   # References (namerefs) are not supported by Bash prior to 4.4 (CentOS currently uses 4.3)
   # For now we expect that the parent function defined a cmd variable
   # local -n command="${1}"
 
   if [ "${_debug_mode}" -ge 2 ]; then
-    log_debug "CMD: ${cmd[@]}"
+    log_debug "CMD: ${cmd[*]}"
   fi
 
   if [ "${cmd[0]}" = fastzmprov ]; then
@@ -348,10 +358,9 @@ function zimbraGetAccountDataSize() {
 
 function zimbraGetAccountData() {
   local email="${1}"
-  zmmailboxSelectMailbox "${email}"
-
   local filter_query="${2}"
-  local cmd=(fastzmmailbox getRestURL "//?fmt=tar${filter_query}")
+  local cmd=(zmmailbox --zadmin --mailbox "${email}" getRestURL "//?fmt=tar${filter_query}")
+
   execZimbraCmd cmd
 }
 
