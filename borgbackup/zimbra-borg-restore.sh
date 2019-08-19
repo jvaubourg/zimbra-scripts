@@ -157,20 +157,28 @@ USAGE
 # Called by the main trap if an error occured and the script stops
 # Umount all directories currently mounted
 function cleanFailedProcess() {
+  local ask_umount=y
+
   log_debug "Cleaning after fail"
 
-  if [ "${#_used_system_mountpoints[@]}" -gt 0 ]; then
-    for mount_folder in "${!_used_system_mountpoints[@]}"; do
-      log_debug "Umounting <${mount_folder}>"
-      umount "${mount_folder}"
-    done
+  if [ "${_debug_mode}" -gt 0 -a \( "${#_used_system_mountpoints[@]}" -gt 0 -o "${#_used_borg_mountpoints[@]}" -gt 0 \) ]; then
+    read -p "Umount system and Borg mountpoints in <${_borg_local_folder_tmp}> (default: Y)? " ask_umount
   fi
 
-  if [ "${#_used_borg_mountpoints[@]}" -gt 0 ]; then
-    for mount_folder in "${!_used_borg_mountpoints[@]}"; do
-      log_debug "Borg umounting <${mount_folder}>"
-      borg umount "${mount_folder}"
-    done
+  if [ -z "${ask_umount}" -o "${ask_umount}" = Y -o "${ask_umount}" = y ]; then
+    if [ "${#_used_system_mountpoints[@]}" -gt 0 ]; then
+      for mount_folder in "${!_used_system_mountpoints[@]}"; do
+        log_debug "Umounting <${mount_folder}>"
+        umount "${mount_folder}"
+      done
+    fi
+
+    if [ "${#_used_borg_mountpoints[@]}" -gt 0 ]; then
+      for mount_folder in "${!_used_borg_mountpoints[@]}"; do
+        log_debug "Borg umounting <${mount_folder}>"
+        borg umount "${mount_folder}"
+      done
+    fi
   fi
 
   if [ -d "${_borg_local_folder_tmp}" ]; then
