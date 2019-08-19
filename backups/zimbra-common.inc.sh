@@ -139,6 +139,8 @@ function zmmailboxSelectMailbox() {
 }
 
 function initFastPrompts() {
+  local path="PATH=/sbin:/bin:/usr/sbin:/usr/bin:${_zimbra_main_path}/bin:${_zimbra_main_path}/libexec"
+
   # fastzmprov
   if [ -z "${_fastprompt_zmprov_tmp}" ]; then
     _fastprompt_zmprov_tmp=$(mktemp -d)
@@ -161,8 +163,6 @@ function execZimbraCmd() {
   # For now we expect that the parent function defined a cmd variable
   # local -n command="${1}"
 
-  local path="PATH=/sbin:/bin:/usr/sbin:/usr/bin:${_zimbra_main_path}/bin:${_zimbra_main_path}/libexec"
-
   if [ "${_debug_mode}" -ge 2 ]; then
     log_debug "CMD: ${cmd[@]}"
   fi
@@ -173,6 +173,7 @@ function execZimbraCmd() {
     execFastPrompt "${_fastprompt_zmmailbox_tmp}/cmd" "${_fastprompt_zmmailbox_tmp}/out"
   else
     # Using sudo instead of su -c and an array instead of a string prevent code injection
+    local path="PATH=/sbin:/bin:/usr/sbin:/usr/bin:${_zimbra_main_path}/bin:${_zimbra_main_path}/libexec"
     sudo -u "${_zimbra_user}" env "${path}" "${cmd[@]}"
   fi
 }
