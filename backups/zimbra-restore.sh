@@ -317,7 +317,7 @@ function zimbraRestoreAccountPassword() {
   checkBackupedFileAccess "${backup_file}"
 
   if [ -f "${backup_file}" -a -s "${backup_file}" ]; then
-    local userPassword=$(< "${backup_path}/userPassword" || true)
+    local userPassword=$(< "${backup_file}")
 
     zimbraUpdateAccountPassword "${email}" "${userPassword}"
     unset _generated_account_passwords["${email}"]

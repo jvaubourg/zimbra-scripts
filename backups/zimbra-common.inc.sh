@@ -50,6 +50,7 @@ function trap_exit() {
 
     echo exit > "${_fastprompt_zmprov_tmp}/cmd"
     wait "${_fastprompt_zmprov_pid}"
+    rm -rf "${_fastprompt_zmprov_tmp}"
     _fastprompt_zmprov_pid=
   fi
 
@@ -58,6 +59,7 @@ function trap_exit() {
 
     echo exit > "${_fastprompt_zmmailbox_tmp}/cmd"
     wait "${_fastprompt_zmmailbox_pid}"
+    rm -rf "${_fastprompt_zmmailbox_tmp}"
     _fastprompt_zmmailbox_pid=
   fi
 
