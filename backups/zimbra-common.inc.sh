@@ -18,6 +18,7 @@ _process_timer=
 _debug_mode=0
 
 # Fastprompt processes
+_disable_fastprompts=true
 _fastprompt_zmprov_tmp=
 _fastprompt_zmprov_pid=
 _fastprompt_zmmailbox_tmp=
@@ -131,6 +132,7 @@ function execFastPrompt() {
   done < <(tail -f "${out_file}" 2> /dev/null || true)
 
   # Display the result of the subcommand
+  # We really hope here that nobody uses ERROR: at the beginning of a line in a signature or anything else
   if grep '^ERROR: ' "${out_file}" | grep -v "${prompt_delimiter}" >&2; then
     false
   else
@@ -142,31 +144,34 @@ function execFastPrompt() {
 function zmmailboxSelectMailbox() {
   local email="${1}"
 
-  if [ "${_fastprompt_zmmailbox_email}" != "${email}" ]; then
+  if ! ${_disable_fastprompts} && [ "${_fastprompt_zmmailbox_email}" != "${email}" ]; then
     local cmd=(fastzmmailbox selectMailbox "${email}")
     execZimbraCmd cmd > /dev/null
-    _fastprompt_zmmailbox_email="${email}"
   fi
+
+  _fastprompt_zmmailbox_email="${email}"
 }
 
 # Start the Java VM of the prompts we will have to use
 function initFastPrompts() {
-  local path="PATH=/sbin:/bin:/usr/sbin:/usr/bin:${_zimbra_main_path}/bin:${_zimbra_main_path}/libexec"
+  if ! ${_disable_fastprompts}; then
+    local path="PATH=/sbin:/bin:/usr/sbin:/usr/bin:${_zimbra_main_path}/bin:${_zimbra_main_path}/libexec"
 
-  # fastzmprov
-  if [ -z "${_fastprompt_zmprov_tmp}" ]; then
-    _fastprompt_zmprov_tmp=$(mktemp -d)
-    mkfifo "${_fastprompt_zmprov_tmp}/cmd"
-    sudo -u "${_zimbra_user}" env "${path}" stdbuf -o0 -e0 zmprov --ldap < <(tail -f "${_fastprompt_zmprov_tmp}/cmd" || true) &>> "${_fastprompt_zmprov_tmp}/out" &
-    _fastprompt_zmprov_pid="${!}"
-  fi
+    # fastzmprov
+    if [ -z "${_fastprompt_zmprov_tmp}" ]; then
+      _fastprompt_zmprov_tmp=$(mktemp -d)
+      mkfifo "${_fastprompt_zmprov_tmp}/cmd"
+      sudo -u "${_zimbra_user}" env "${path}" stdbuf -o0 -e0 zmprov --ldap < <(tail -f "${_fastprompt_zmprov_tmp}/cmd" || true) &>> "${_fastprompt_zmprov_tmp}/out" &
+      _fastprompt_zmprov_pid="${!}"
+    fi
 
-  # fastzmmailbox
-  if [ -z "${_fastprompt_zmmailbox_tmp}" ]; then
-    _fastprompt_zmmailbox_tmp=$(mktemp -d)
-    mkfifo "${_fastprompt_zmmailbox_tmp}/cmd"
-    sudo -u "${_zimbra_user}" env "${path}" stdbuf -o0 -e0 zmmailbox --zadmin < <(tail -f "${_fastprompt_zmmailbox_tmp}/cmd" || true) &>> "${_fastprompt_zmmailbox_tmp}/out" &
-    _fastprompt_zmmailbox_pid="${!}"
+    # fastzmmailbox
+    if [ -z "${_fastprompt_zmmailbox_tmp}" ]; then
+      _fastprompt_zmmailbox_tmp=$(mktemp -d)
+      mkfifo "${_fastprompt_zmmailbox_tmp}/cmd"
+      sudo -u "${_zimbra_user}" env "${path}" stdbuf -o0 -e0 zmmailbox --zadmin < <(tail -f "${_fastprompt_zmmailbox_tmp}/cmd" || true) &>> "${_fastprompt_zmmailbox_tmp}/out" &
+      _fastprompt_zmmailbox_pid="${!}"
+    fi
   fi
 }
 
@@ -175,6 +180,14 @@ function execZimbraCmd() {
   # References (namerefs) are not supported by Bash prior to 4.4 (CentOS currently uses 4.3)
   # For now we expect that the parent function defined a cmd variable
   # local -n command="${1}"
+
+  if ${_disable_fastprompts}; then
+    if [ "${cmd[0]}" = fastzmprov ]; then
+      cmd=( zmprov --ldap "${cmd[@]}" )
+    elif [ "${cmd[0]}" = fastzmmailbox ]; then
+      cmd=( zmmailbox --zadmin --mailbox "${_fastprompt_zmmailbox_email}" "${cmd[@]}" )
+    fi
+  fi
 
   if [ "${_debug_mode}" -ge 2 ]; then
     log_debug "CMD: ${cmd[*]}"
