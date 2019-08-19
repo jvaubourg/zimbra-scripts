@@ -385,7 +385,7 @@ function zimbraGetFolderAttributes() {
   zmmailboxSelectMailbox "${email}"
 
   local path="${2}"
-  local cmd=(getFolder "${path}")
+  local cmd=(fastzmmailbox getFolder "${path}")
   execZimbraCmd cmd
 }
 
