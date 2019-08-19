@@ -78,6 +78,9 @@ function exit_usage() {
       [Default] Everything is restored
 
   MAIN BORG REPOSITORY
+    The main repository contains the backups of the server-side settings (ie. everything except accounts
+    themselves), and the Backup Config Files of all the accounts (ie. addresses of the Borg servers with
+    the passphrases).
 
     -a borg_repo
       Full Borg+SSH repository address for the main files
