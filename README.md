@@ -6,6 +6,17 @@ Clone me into */usr/share/zimbra-scripts/* and do symbolic links for the .sh fil
 
 **Remote: Host key verification failed.**: As root, always do a first SSH connection from the mail server to all the Borg servers to use, to validate yourself the host keys.
 
+   * [Backup](#backup)
+      * [Locally using zimbra-backup.sh](#locally-using-zimbra-backupsh)
+      * [Remotely using zimbra-borg-backup.sh](#remotely-using-zimbra-borg-backupsh)
+   * [Restore](#restore)
+      * [Locally using zimbra-restore.sh](#locally-using-zimbra-restoresh)
+      * [Remotely using zimbra-borg-restore.sh](#remotely-using-zimbra-borg-restoresh)
+   * [Backup's Anatomy](#backups-anatomy)
+      * [Without using Borg](#without-using-borg)
+      * [Using Borg](#using-borg)
+   * [Output Examples](#output-examples)
+
 ## Backup
 ### Locally using zimbra-backup.sh
 
