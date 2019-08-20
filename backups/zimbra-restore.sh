@@ -441,7 +441,10 @@ function zimbraRestoreAccountMiscSettings() {
       local value=$(< "${backup_file}")
       local field=${setting#*-}
 
-      zimbraSetAccountSetting "${email}" "${field}" "${value}" > /dev/null
+      # Best effort on the misc settings
+      if zimbraSetAccountSetting "${email}" "${field}" "${value}" &> /dev/null; then
+        log_warn "${email}/Settings: Unable to restore <${field}> value"
+      fi
     done
   else
     log_debug "${email}/Settings: No misc backuped settings found"

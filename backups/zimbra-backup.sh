@@ -384,8 +384,14 @@ function zimbraBackupAccountMiscSettings() {
     local backup_file="${backup_path}/${backup_file_id}-${field}"
 
     log_debug "${email}/Settings: Backup setting <${field}>"
-    zimbraGetAccountSetting "${email}" "${field}" > "${backup_file}"
-    removeFileIfEmpty "${backup_file}"
+
+    # Best effort on the misc settings
+    if zimbraGetAccountSetting "${email}" "${field}" > "${backup_file}" 2> /dev/null; then
+      removeFileIfEmpty "${backup_file}"
+    else
+      log_warn "${email}/Settings: Unable to save value of <${field}>"
+      rm -f "${backup_file}"
+    fi
 
     if [ -f "${backup_file}" ]; then
       (( _backups_settings_current_id++ ))
@@ -678,8 +684,27 @@ initFastPrompts
           log_info "${email}/Settings: Backuping pref settings"
           zimbraBackupAccountPrefSettings "${email}"
 
+          # If you find other important settings to backup, please do a PR on Github to add them in the list below
+          # Most of them are from <https://wiki.zimbra.com/wiki/Create_a_COS_for_Standard,_Professional,_BusinessPlus_and_Business_licenses>
+
           log_info "${email}/Settings: Backuping misc settings"
           zimbraBackupAccountMiscSettings "${email}" "
+            zimbraFeatureMAPIConnectorEnabled
+            zimbraFeatureMobileSyncEnabled
+            zimbraArchiveEnabled
+            zimbraFeatureConversationsEnabled
+            zimbraFeatureTaggingEnabled
+            zimbraAttachmentsIndexingEnabled
+            zimbraFeatureViewInHtmlEnabled
+            zimbraFeatureGroupCalendarEnabled
+            zimbraFeatureSharingEnabled
+            zimbraFeatureTasksEnabled
+            zimbraFeatureBriefcasesEnabled
+            zimbraFeatureSMIMEEnabled
+            zimbraFeatureVoiceEnabled
+            zimbraFeatureManageZimlets
+            zimbraFeatureCalendarEnabled
+            zimbraFeatureGalEnabled
             zimbraMailSieveScript
             zimbraMailCatchAllAddress
             zimbraFeatureOutOfOfficeReplyEnabled
