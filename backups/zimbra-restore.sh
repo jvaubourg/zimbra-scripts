@@ -399,9 +399,36 @@ function zimbraRestoreAccountSignatures() {
   fi
 }
 
-function zimbraRestoreAccountOtherSettings() {
+# Restore user-defined settings saved for this account
+function zimbraRestoreAccountPrefSettings() {
   local email="${1}"
-  local backup_path="${_backups_path}/accounts/${email}/settings/others"
+  local backup_path="${_backups_path}/accounts/${email}/settings/pref"
+
+  checkBackupedDirectoryAccess "${backup_path}"
+  local settings=$(find "${backup_path}" -mindepth 1 -maxdepth 1 -type f -name 'zimbraPref*' -printf '%f ' 2> /dev/null || true)
+
+  if [ -n "${settings}" ]; then
+    for setting in ${settings}; do
+      local backup_file="${backup_path}/${setting}"
+      checkBackupedFileAccess "${backup_file}"
+
+      local value=$(< "${backup_file}")
+      local field=${setting#*-}
+
+      # Best effort on the pref settings
+      if ! zimbraSetAccountSetting "${email}" "${field}" "${value}" &> /dev/null; then
+        log_warn "${email}/Settings: Unable to restore <${field}> value"
+      fi
+    done
+  else
+    log_debug "${email}/Settings: No pref backuped settings found"
+  fi
+}
+
+# Restore misc settings for the account
+function zimbraRestoreAccountMiscSettings() {
+  local email="${1}"
+  local backup_path="${_backups_path}/accounts/${email}/settings/misc"
 
   checkBackupedDirectoryAccess "${backup_path}"
   local settings=$(find "${backup_path}" -mindepth 1 -maxdepth 1 -type f -name '[0-9][0-9]*-zimbra*' -printf '%f ' 2> /dev/null || true)
@@ -417,7 +444,7 @@ function zimbraRestoreAccountOtherSettings() {
       zimbraSetAccountSetting "${email}" "${field}" "${value}" > /dev/null
     done
   else
-    log_debug "${email}/Settings: No other backuped settings found"
+    log_debug "${email}/Settings: No misc backuped settings found"
   fi
 }
 
@@ -620,7 +647,7 @@ log_debug "Zimbra main domain is <${_zimbra_install_domain}>"
         log_info "${email}: Locking for the time of the restoration"
         zimbraRestoreAccountLock "${email}"
 
-        # Restore other settings
+        # Restore settings
         (${_include_all} || ${_include_accounts_settings}) && {
           log_info "${email}: Restoring settings"
 
@@ -630,8 +657,11 @@ log_debug "Zimbra main domain is <${_zimbra_install_domain}>"
           log_info "${email}/Settings: Restoring signatures"
           zimbraRestoreAccountSignatures "${email}"
 
-          log_info "${email}/Settings: Restoring other settings"
-          zimbraRestoreAccountOtherSettings "${email}"
+          log_info "${email}/Settings: Restoring pref settings"
+          zimbraRestoreAccountPrefSettings "${email}"
+
+          log_info "${email}/Settings: Restoring misc settings"
+          zimbraRestoreAccountMiscSettings "${email}"
         }
 
         # Restore data

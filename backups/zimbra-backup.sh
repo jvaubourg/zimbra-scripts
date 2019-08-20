@@ -342,11 +342,38 @@ function zimbraBackupAccountIdentitySettings() {
   done
 }
 
-# Save account user-defined settings for the account
-function zimbraBackupAccountOtherSettings() {
+# Save (most) user-defined settings for the account
+# Has to be called after zimbraBackupAccountSettingsFile
+function zimbraBackupAccountPrefSettings() {
+  local email="${1}"
+  local backup_path="${_backups_path}/accounts/${email}/settings/pref"
+  local settings_file="${_backups_path}/accounts/${email}/settings/all_settings"
+  local fields=$(grep '^zimbraPref' "${settings_file}" | sed 's/^\([^:]\+\).*/\1/' | sort -u)
+
+  install -o "${_zimbra_user}" -g "${_zimbra_group}" -d "${backup_path}"
+
+  for field in ${fields}; do
+    if [[ ! "${field}" =~ Signature ]]; then
+      local backup_file="${backup_path}/${field}"
+
+      log_debug "${email}/Settings: Backup setting <${field}>"
+
+      # Best effort on the pref settings
+      if zimbraGetAccountSetting "${email}" "${field}" > "${backup_file}" 2> /dev/null; then
+        removeFileIfEmpty "${backup_file}"
+      else
+        log_warn "${email}/Settings: Unable to save value of <${field}>"
+        rm -f "${backup_file}"
+      fi
+    fi
+  done
+}
+
+# Save misc settings for the account
+function zimbraBackupAccountMiscSettings() {
   local email="${1}"
   local fields="${2}"
-  local backup_path="${_backups_path}/accounts/${email}/settings/others"
+  local backup_path="${_backups_path}/accounts/${email}/settings/misc"
 
   install -o "${_zimbra_user}" -g "${_zimbra_group}" -d "${backup_path}"
 
@@ -648,21 +675,15 @@ initFastPrompts
           log_info "${email}/Settings: Backuping signatures"
           zimbraBackupAccountSettingSignatures "${email}"
 
-          log_info "${email}/Settings: Backuping other settings"
-          zimbraBackupAccountOtherSettings "${email}" "
+          log_info "${email}/Settings: Backuping pref settings"
+          zimbraBackupAccountPrefSettings "${email}"
+
+          log_info "${email}/Settings: Backuping misc settings"
+          zimbraBackupAccountMiscSettings "${email}" "
             zimbraMailSieveScript
             zimbraMailCatchAllAddress
-            zimbraPrefMailForwardingAddress
-            zimbraPrefMailLocalDeliveryDisabled
             zimbraFeatureOutOfOfficeReplyEnabled
-            zimbraPrefOutOfOfficeCacheDuration
-            zimbraPrefOutOfOfficeExternalReply
-            zimbraPrefOutOfOfficeExternalReplyEnabled
-            zimbraPrefOutOfOfficeFromDate
-            zimbraPrefOutOfOfficeReply
-            zimbraPrefOutOfOfficeReplyEnabled
-            zimbraPrefOutOfOfficeStatusAlertOnLogin
-            zimbraPrefOutOfOfficeUntilDate"
+          "
         }
 
         (${_include_all} || ${_include_accounts_data}) && {

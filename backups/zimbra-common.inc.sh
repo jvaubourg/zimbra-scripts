@@ -112,7 +112,7 @@ function setZimbraPermissions() {
 function execFastPrompt() {
   local cmd_pipe="${1}"
   local out_file="${2}"
-  local prompt_delimiter=$(echo "${RANDOM}" | sha256sum | cut -d' ' -f1)
+  local prompt_delimiter=$(echo "${RANDOM}" | sha256sum | awk '{ print $1 }')
 
   :> "${out_file}"
 
