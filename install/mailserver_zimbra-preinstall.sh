@@ -6,57 +6,63 @@
 set -xeu
 
 # Variables and functions with confidential information
-# You have to fill it with real data and to put SSH pub keys in files_secrets/
-source ./zimbra-install_secrets.conf.sh
+# You have to fill it with real data
+source ./secrets.conf.sh
 
 function replace_placeholders() {
   local file="${1}"
 
-  sed "s/<TPL:HOSTNAME>/${HOSTNAME}/g" -i "$file"
-  sed "s/<TPL:MAIN_DOMAIN>/${MAIN_DOMAIN}/g" -i "$file"
-  sed "s/<TPL:WIRED_DEV>/${WIRED_DEV}/g" -i "${file}"
-  sed "s/<TPL:IPV6_ADDR>/${IPV6_ADDR}/g" -i "${file}"
-  sed "s/<TPL:IPV6_CIDR>/${IPV6_CIDR}/g" -i "${file}"
-  sed "s/<TPL:IPV4_ADDR>/${IPV4_ADDR}/g" -i "${file}"
-  sed "s/<TPL:IPV4_CIDR>/${IPV4_CIDR}/g" -i "${file}"
-  sed "s/<TPL:IPV4_GW>/${IPV4_GW}/g" -i "${file}"
-  sed "s/<TPL:NET_UUID>/${NET_UUID}/g" -i "${file}"
+  sed "s/<TPL:MAILSERVER_HOSTNAME>/${MAILSERVER_HOSTNAME}/g" -i "$file"
+  sed "s/<TPL:MAILSERVER_MAIN_DOMAIN>/${MAILSERVER_MAIN_DOMAIN}/g" -i "$file"
+  sed "s/<TPL:MAILSERVER_WIRED_DEV>/${MAILSERVER_WIRED_DEV}/g" -i "${file}"
+  sed "s/<TPL:MAILSERVER_IPV6_ADDR>/${MAILSERVER_IPV6_ADDR}/g" -i "${file}"
+  sed "s/<TPL:MAILSERVER_IPV6_CIDR>/${MAILSERVER_IPV6_CIDR}/g" -i "${file}"
+  sed "s/<TPL:MAILSERVER_IPV4_ADDR>/${MAILSERVER_IPV4_ADDR}/g" -i "${file}"
+  sed "s/<TPL:MAILSERVER_IPV4_CIDR>/${MAILSERVER_IPV4_CIDR}/g" -i "${file}"
+  sed "s/<TPL:MAILSERVER_IPV4_GW>/${MAILSERVER_IPV4_GW}/g" -i "${file}"
+  sed "s/<TPL:MAILSERVER_NET_UUID>/${MAILSERVER_NET_UUID}/g" -i "${file}"
 }
 
 function create_user() {
   local user="${1}"
+  local user_pubkey="${MAILSERVER_USERS[$user]}"
 
   useradd "${user}" || true
   install -b -m 0700 -o "${user}" -g "${user}" -d "/home/${user}/.ssh"
-  install -b -m 0600 -o "${user}" -g "${user}" "${FILES_SECRETS}/home/${user}/.ssh/authorized_keys" "/home/${user}/.ssh"
+
+  echo "${user_pubkey}" > "/home/${user}/.ssh/authorized_keys"
+  chown "${user}:" "/home/${user}/.ssh/authorized_keys"
+  chmod 0600 "/home/${user}/.ssh/authorized_keys"
 }
 
 # Users
-create_users # From _secrets
+for user in "${!MAILSERVER_USERS[@]}"; do
+  create_user "${user}"
+done
 
 # Bash
 file=/root/.bashrc
 yum -y install screen
-install -b -m 0644 -o root -g root "${FILES}${file}" "${file}"
+install -b -m 0644 -o root -g root "${MAILSERVER_FILES}${file}" "${file}"
 
 # Hostname
 file=/etc/hosts
-install -b -m 0644 -o root -g root "${FILES}${file}" "${file}"
+install -b -m 0644 -o root -g root "${MAILSERVER_FILES}${file}" "${file}"
 replace_placeholders "${file}"
 
-hostnamectl --static set-hostname "${HOSTNAME}"
-hostnamectl --pretty set-hostname "Mail ${MAIN_DOMAIN}"
+hostnamectl --static set-hostname "${MAILSERVER_HOSTNAME}"
+hostnamectl --pretty set-hostname "Mail ${MAILSERVER_MAIN_DOMAIN}"
 # % hostname => mail
 # % hostname -f => mail.example.com
 
 # Network
-file="/etc/sysconfig/network-scripts/ifcfg-${WIRED_DEV}"
-install -b -m 0644 -o root -g root "${FILES}/etc/sysconfig/network-scripts/ifcfg-eth0" "${file}"
+file="/etc/sysconfig/network-scripts/ifcfg-${MAILSERVER_WIRED_DEV}"
+install -b -m 0644 -o root -g root "${MAILSERVER_FILES}/etc/sysconfig/network-scripts/ifcfg-eth0" "${file}"
 replace_placeholders "${file}"
 
 # SSH
 file=/etc/ssh/sshd_config
-install -b -m 0600 -o root -g root "${FILES}${file}" "${file}"
+install -b -m 0600 -o root -g root "${MAILSERVER_FILES}${file}" "${file}"
 systemctl restart sshd
 
 # Firewall
@@ -73,14 +79,14 @@ firewall-cmd --zone=public --add-service=imaps --permanent
 firewall-cmd --zone=public --add-port=2222/tcp --permanent
 firewall-cmd --zone=public --remove-service=ssh --permanent
 
-set_admin_firewall # From _secrets
+mailserver_set_admin_firewall # From _secrets
 firewall-cmd --reload
 
 # Automatic updates
 yum -y install yum-cron
 
 file=/etc/yum/yum-cron.conf
-install -b -m 0600 -o root -g root "${FILES}${file}" "${file}"
+install -b -m 0600 -o root -g root "${MAILSERVER_FILES}${file}" "${file}"
 replace_placeholders "${file}"
 
 systemctl enable yum-cron

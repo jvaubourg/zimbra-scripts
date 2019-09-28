@@ -7,7 +7,7 @@ set -xeu
 
 # Variables and functions with confidential information
 # You have to fill it with real data
-source ./zimbra-install_secrets.conf.sh
+source ./secrets.conf.sh
 
 # Firewall
 systemctl start firewalld
@@ -23,9 +23,9 @@ ln -s /usr/share/zimbra-scripts/backups/zimbra-backup.sh /usr/local/bin/
 ln -s /usr/share/zimbra-scripts/backups/zimbra-restore.sh /usr/local/bin/
 
 # Enable IPv6
-cmd=(zmprov modifyServer "${HOSTNAME}.${MAIN_DOMAIN}" zimbraIPMode both)
+cmd=(zmprov modifyServer "${MAILSERVER_HOSTNAME}.${MAILSERVER_MAIN_DOMAIN}" zimbraIPMode both)
 execZimbraCmd cmd
-cmd=("${ZIMBRA_PATH}/libexec/zmiptool")
+cmd=("${MAILSERVER_ZIMBRA_PATH}/libexec/zmiptool")
 execZimbraCmd cmd
 
 # Logrotate
@@ -40,10 +40,10 @@ cmd=(zmlocalconfig -e zimbra_mtareport_max_hosts=0)
 execZimbraCmd cmd
 
 # No service start/stop mails
-sed '/Service status change/ { s/^/#/; n; s/^/#/ }' -i "${ZIMBRA_PATH}/conf/swatchrc.in"
+sed '/Service status change/ { s/^/#/; n; s/^/#/ }' -i "${MAILSERVER_ZIMBRA_PATH}/conf/swatchrc.in"
 
 # Redirect HTTP to HTTPS
-cmd=(zmprov modifyServer "${HOSTNAME}.${MAIN_DOMAIN}" zimbraReverseProxyMailMode redirect)
+cmd=(zmprov modifyServer "${MAILSERVER_HOSTNAME}.${MAILSERVER_MAIN_DOMAIN}" zimbraReverseProxyMailMode redirect)
 execZimbraCmd cmd
 
 # Cipher suites
