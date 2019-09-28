@@ -255,9 +255,10 @@ function borgBackupMain() {
       FASTZMPROV_TMP="${_fastprompt_zmprov_tmp}" FASTZMMAILBOX_TMP="${_fastprompt_zmmailbox_tmp}" \
         zimbra-backup.sh -d "${_debug_mode}" -i server_settings -b "${_borg_local_folder_tmp}"
 
-      # Save at the same time all Backup Config Files in a borg/ folder
+      # Save at the same time all Backup Config Files (and all other files in the Borg folder)
       install -b -m 0700 -o "${_zimbra_user}" -g "${_zimbra_group}" -d "${_borg_local_folder_tmp}/borg/"
-      cp -a "${_borg_local_folder_configs}" "${_borg_local_folder_tmp}/borg/"
+      find "${_borg_local_folder_main}" -mindepth 1 -maxdepth 1 ! -samefile "${_borg_local_folder_tmp}"\
+        -exec cp -a '{}' "${_borg_local_folder_tmp}/borg/" \;
 
       log_info "Sending data to Borg (new archive ${new_archive} in the main repo)"
       pushd "${_borg_local_folder_tmp}" > /dev/null
@@ -395,7 +396,7 @@ _borg_local_folder_tmp="${_borg_local_folder_main}/tmp"
 _borg_local_folder_configs="${_borg_local_folder_main}/configs"
 
 if [ -z "${_borg_repo_ssh_key}" ]; then
-  _borg_repo_ssh_key="${_borg_local_folder_main}/private_ssh_key"
+  _borg_repo_ssh_key="${_borg_local_folder_main}/ssh/ssh_key"
 fi
 
 # Debug mode

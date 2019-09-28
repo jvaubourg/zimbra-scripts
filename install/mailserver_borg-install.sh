@@ -33,7 +33,22 @@ export BORG_PASSPHRASE=$(openssl rand -base64 32)
 export BORG_RSH="ssh -oBatchMode=yes -i ${MAILSERVER_BORG_FOLDER}/ssh/ssh_key -p ${BACKUPSERVER_SSH_PORT}"
 borg init -e repokey "${borg_server}:main"
 
-# Save main passphrase for next scripts
+# Save the passphrase of the main repo
 printf '%s' "${BORG_PASSPHRASE}" > "${MAILSERVER_BORG_FOLDER}/main_repo_passphrase"
+
+# Create a script to execute to run a full remote backup
+cat << EOF > "${MAILSERVER_BORG_FOLDER}/run_backup.sh"
+zimbra-borg-backup.sh\\
+  -a ${borg_server}:main\\
+  -z \$(cat ${MAILSERVER_BORG_FOLDER}/main_repo_passphrase)\\
+  -k ${MAILSERVER_BORG_FOLDER}/ssh/ssh_key\\
+  -t ${BACKUPSERVER_SSH_PORT}\\
+  -r ${borg_server}:\\
+  -s '.*/nobackup'
+EOF
+
+# Copy secrets to know how the server was installed
+install -b -m 0700 -o root -g root -d "${MAILSERVER_BORG_FOLDER}/misc"
+install -b -m 0600 -o root -g root ./secrets.conf.sh "${MAILSERVER_BORG_FOLDER}/misc"
 
 exit 0
