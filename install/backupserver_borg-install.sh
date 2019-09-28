@@ -1,12 +1,18 @@
 #!/bin/bash
 # https://blog.karolak.fr/2017/05/05/monter-un-serveur-de-sauvegardes-avec-borgbackup/
 
+set -xeu
+
+# Variables and functions with confidential information
+# You have to fill it with real data
+source ./secrets.conf.sh
+
 backups_path="/home/${BACKUPSERVER_USER}/${BACKUPSERVER_FOLDER}"
-ssh_authorized_cmd="command='cd ${backups_path}; borg serve --restrict-to-path ${backups_path}',no-port-forwarding,no-x11-forwarding,no-agent-forwarding,no-pty,no-user-rc"
+ssh_authorized_cmd="command=\"cd ${backups_path}; borg serve --restrict-to-path ${backups_path}\",no-port-forwarding,no-x11-forwarding,no-agent-forwarding,no-pty,no-user-rc"
 
 # Install Borg server
-yum install epel-release
-yum install borgbackup
+yum -y install epel-release
+yum -y install borgbackup
 useradd -rUm "${BACKUPSERVER_USER}"
 
 # Create backups storage folder

@@ -13,6 +13,7 @@ MAILSERVER_IPV4_CIDR=24
 MAILSERVER_IPV4_GW=203.0.113.1
 MAILSERVER_NET_UUID=213e29fb-73fc-5e4f-ab10-efde6c3518f8 # Inside default /etc/sysconfig/network-scripts/ifcfg-eth0
 MAILSERVER_ZIMBRA_PATH=/opt/zimbra
+MAILSERVER_BORG_FOLDER=/opt/zimbra_borgbackup
 
 function mailserver_set_admin_firewall() {
   # firewall-cmd --permanent --add-rich-rule='rule family="ipv6" source address="<ipv6>/128" port port="7071" protocol="tcp" accept'
