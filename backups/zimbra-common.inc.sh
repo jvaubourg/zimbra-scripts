@@ -549,3 +549,11 @@ function zimbraCreateDataFolder() {
   local cmd=(fastzmmailbox createFolder "${folder}")
   execZimbraCmd cmd | hideReturnedId
 }
+
+function shellQuietPopd() {
+  command popd > /dev/null
+}
+
+function shellQuietPushd() {
+  command pushd "$@" > /dev/null
+}
