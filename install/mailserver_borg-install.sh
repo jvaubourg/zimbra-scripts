@@ -39,7 +39,9 @@ borg init -e repokey "${borg_server}:main"
 printf '%s' "${BORG_PASSPHRASE}" > "${MAILSERVER_BORG_FOLDER}/main_repo_passphrase"
 
 # Script to execute to run a full remote backup
-file="${MAILSERVER_BORG_FOLDER}/run_backup.sh"
+file="${MAILSERVER_BORG_FOLDER}/bin/run_backup.sh"
+
+install -b -m 0700 -o root -g root -d "${MAILSERVER_BORG_FOLDER}/bin"
 
 cat << EOF > "${file}"
 #!/bin/bash
@@ -55,6 +57,22 @@ EOF
 
 chmod 0700 "${file}"
 ln -s "${file}" /usr/local/bin/run-zimbra-borg-backup.sh
+
+# Script to execute to restore everything on a *fresh* Zimbra
+file="${MAILSERVER_BORG_FOLDER}/bin/run_restore.sh"
+
+cat << EOF > "${file}"
+#!/bin/bash
+
+zimbra-borg-restore.sh\\
+  -a ${borg_server}:main\\
+  -z \$(cat ${MAILSERVER_BORG_FOLDER}/main_repo_passphrase)\\
+  -k ${MAILSERVER_BORG_FOLDER}/ssh/ssh_key\\
+  -t ${BACKUPSERVER_SSH_PORT}
+EOF
+
+chmod 0700 "${file}"
+ln -s "${file}" /usr/local/bin/run-zimbra-borg-restore.sh
 
 # Save secrets in future backups
 install -b -m 0700 -o root -g root -d "${MAILSERVER_BORG_FOLDER}/misc"

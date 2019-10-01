@@ -2,8 +2,10 @@
 
 set -xeu
 
-if [ -x /usr/local/bin/run-zimbra-borg-backup.sh ]; then
-  /usr/local/bin/run-zimbra-borg-backup.sh &> /var/log/autorun-zimbra-borg-backup.log
+run_script=/usr/local/bin/run-zimbra-borg-backup.sh
+
+if [ -x "${run_script}" ]; then
+  "${run_script}" &> /var/log/autorun-zimbra-borg-backup.log
 fi
 
 exit 0

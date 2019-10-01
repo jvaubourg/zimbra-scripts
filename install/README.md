@@ -24,6 +24,8 @@ On your mail server:
 
 1. Execute _mailserver_borg-install.sh_.
 
+2. Backup _/opt/zimbra_borgbackup/main_repo_passphrase_ now on your own laptop.
+
 ## Install remote backup and restore scripts
 
 Local backup and restore scripts have to be installed before (see above).
