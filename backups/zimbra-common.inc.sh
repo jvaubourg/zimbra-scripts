@@ -130,7 +130,7 @@ function execFastPrompt() {
     elif [[ "${out_line}" =~ "${prompt_delimiter}" ]]; then
       delimiter_has_been_executed=true
     fi
-  done < <(tail -f "${out_file}" 2> /dev/null || true)
+  done < <(tail --follow=name "${out_file}" 2> /dev/null || true)
 
   # Display the result of the subcommand
   # We really hope here that nobody uses ERROR: at the beginning of a line in a signature or anything else
