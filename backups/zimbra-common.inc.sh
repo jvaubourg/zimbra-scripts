@@ -113,6 +113,7 @@ function execFastPrompt() {
   local cmd_pipe="${1}"
   local out_file="${2}"
   local prompt_delimiter=$(echo "${RANDOM}" | sha256sum | awk '{ print $1 }')
+  local delimiter_has_been_executed=false
 
   :> "${out_file}"
 
@@ -121,13 +122,13 @@ function execFastPrompt() {
   printf '%q ' "${cmd[@]:1}" | sed "s/ \\$'/ '/g" > "${cmd_pipe}"
   printf '\n%s\n' "${prompt_delimiter}" > "${cmd_pipe}"
 
-  # Wait to see the fake subcommand, meaning that the processing of the real
+  # Wait to see the fake subcommand, meaning that the processing of the
   # real one is terminated
   while read out_line; do
-    if [ -z "${prompt_delimiter}" ]; then
+    if ${delimiter_has_been_executed}; then
       break
     elif [[ "${out_line}" =~ "${prompt_delimiter}" ]]; then
-      prompt_delimiter=
+      delimiter_has_been_executed=true
     fi
   done < <(tail -f "${out_file}" 2> /dev/null || true)
 
