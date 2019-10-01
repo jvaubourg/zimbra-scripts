@@ -1,0 +1,9 @@
+[Unit]
+Description=Everyday remote Zimbra backup with Borg
+
+[Timer]
+OnCalendar=*-*-* 04:00:00
+Unit=autorun-zimbra-borg-backup.service
+
+[Install]
+WantedBy=multi-user.target

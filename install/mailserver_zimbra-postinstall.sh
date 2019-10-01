@@ -67,6 +67,9 @@ execZimbraCmd cmd
 cmd=(zmprov modifyConfig zimbraVirusBlockEncryptedArchive FALSE)
 execZimbraCmd cmd
 
+# Install zimbra-borg-backup scripts (do nothing if not installed)
+
+
 # Reboot
 echo "You should now reboot the system"
 
