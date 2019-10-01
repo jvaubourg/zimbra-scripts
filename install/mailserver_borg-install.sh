@@ -53,7 +53,6 @@ zimbra-borg-backup.sh\\
   ${MAILSERVER_BACKUP_OPTIONS}
 EOF
 
-chown root: "${file}"
 chmod 0700 "${file}"
 ln -s "${file}" /usr/local/bin/run-zimbra-borg-backup.sh
 
