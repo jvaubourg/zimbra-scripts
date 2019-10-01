@@ -36,7 +36,11 @@ export BORG_RSH="ssh -oBatchMode=yes -i ${MAILSERVER_BORG_FOLDER}/ssh/ssh_key -p
 borg init -e repokey "${borg_server}:main"
 
 # Passphrase of the main repo
-printf '%s' "${BORG_PASSPHRASE}" > "${MAILSERVER_BORG_FOLDER}/main_repo_passphrase"
+install -b -m 0700 -o root -g root -d "${MAILSERVER_BORG_FOLDER}/secrets"
+printf '%s' "${BORG_PASSPHRASE}" > "${MAILSERVER_BORG_FOLDER}/secrets/main_repo_passphrase"
+
+# Save secrets conf file
+install -b -m 0600 -o root -g root ./secrets.conf.sh "${MAILSERVER_BORG_FOLDER}/secrets/"
 
 # Script to execute to run a full remote backup
 file="${MAILSERVER_BORG_FOLDER}/bin/run_backup.sh"
@@ -46,13 +50,17 @@ install -b -m 0700 -o root -g root -d "${MAILSERVER_BORG_FOLDER}/bin"
 cat << EOF > "${file}"
 #!/bin/bash
 
+set -xeu
+pushd "${MAILSERVER_BORG_FOLDER}/bin/" &> /dev/null || true
+source ../secrets/secrets.conf.sh
+
 zimbra-borg-backup.sh\\
-  -a ${borg_server}:main\\
-  -z \$(cat ${MAILSERVER_BORG_FOLDER}/main_repo_passphrase)\\
-  -k ${MAILSERVER_BORG_FOLDER}/ssh/ssh_key\\
-  -t ${BACKUPSERVER_SSH_PORT}\\
-  -r ${borg_server}:\\
-  ${MAILSERVER_BACKUP_OPTIONS}
+  -a "\${BACKUPSERVER_USER}@\${BACKUPSERVER_DOMAIN}:main"\\
+  -z "\$(cat ../secrets/main_repo_passphrase)"\\
+  -k ../ssh/ssh_key\\
+  -t "\${BACKUPSERVER_SSH_PORT}"\\
+  -r "\${BACKUPSERVER_USER}@\${BACKUPSERVER_DOMAIN}:"\\
+  \${MAILSERVER_BACKUP_OPTIONS}
 EOF
 
 chmod 0700 "${file}"
@@ -64,18 +72,18 @@ file="${MAILSERVER_BORG_FOLDER}/bin/run_restore.sh"
 cat << EOF > "${file}"
 #!/bin/bash
 
+set -xeu
+pushd "${MAILSERVER_BORG_FOLDER}/bin/" &> /dev/null || true
+source ../secrets/secrets.conf.sh
+
 zimbra-borg-restore.sh\\
-  -a ${borg_server}:main\\
-  -z \$(cat ${MAILSERVER_BORG_FOLDER}/main_repo_passphrase)\\
-  -k ${MAILSERVER_BORG_FOLDER}/ssh/ssh_key\\
-  -t ${BACKUPSERVER_SSH_PORT}
+  -a "\${BACKUPSERVER_USER}@\${BACKUPSERVER_DOMAIN}:main"\\
+  -z "\$(cat ../secrets/main_repo_passphrase)"\\
+  -k ../ssh/ssh_key\\
+  -t "\${BACKUPSERVER_SSH_PORT}"
 EOF
 
 chmod 0700 "${file}"
 ln -s "${file}" /usr/local/bin/run-zimbra-borg-restore.sh
-
-# Save secrets in future backups
-install -b -m 0700 -o root -g root -d "${MAILSERVER_BORG_FOLDER}/misc"
-install -b -m 0600 -o root -g root ./secrets.conf.sh "${MAILSERVER_BORG_FOLDER}/misc"
 
 exit 0
