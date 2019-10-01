@@ -67,8 +67,16 @@ execZimbraCmd cmd
 cmd=(zmprov modifyConfig zimbraVirusBlockEncryptedArchive FALSE)
 execZimbraCmd cmd
 
-# Install zimbra-borg-backup scripts (do nothing if not installed)
+# Zimbra-Borg-Backup scripts (do nothing if not installed)
+file=/usr/local/bin/autorun-zimbra-borg-backup.sh
+install -b -m 0700 -o root -g root "${MAILSERVER_FILES}${file}" "${file}"
+file=/etc/systemd/system/autorun-zimbra-borg-backup.service
+install -b -m 0644 -o root -g root "${MAILSERVER_FILES}${file}" "${file}"
+file=/etc/systemd/system/autorun-zimbra-borg-backup.timer
+install -b -m 0644 -o root -g root "${MAILSERVER_FILES}${file}" "${file}"
 
+systemctl enable autorun-zimbra-borg-backup.timer
+systemctl start autorun-zimbra-borg-backup.timer
 
 # Reboot
 echo "You should now reboot the system"
