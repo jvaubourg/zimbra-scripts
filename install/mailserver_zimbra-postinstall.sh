@@ -21,6 +21,8 @@ source /usr/share/zimbra-scripts/backups/zimbra-common.inc.sh
 
 ln -s /usr/share/zimbra-scripts/backups/zimbra-backup.sh /usr/local/bin/
 ln -s /usr/share/zimbra-scripts/backups/zimbra-restore.sh /usr/local/bin/
+ln -s /usr/share/zimbra-scripts/borgbackup/zimbra-borg-backup.sh /usr/local/bin/
+ln -s /usr/share/zimbra-scripts/borgbackup/zimbra-borg-restore.sh /usr/local/bin/
 
 # Enable IPv6
 cmd=(zmprov modifyServer "${MAILSERVER_HOSTNAME}.${MAILSERVER_MAIN_DOMAIN}" zimbraIPMode both)
