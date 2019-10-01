@@ -10,7 +10,7 @@ borg_server="${BACKUPSERVER_USER}@${BACKUPSERVER_DOMAIN}"
 
 # Borg client
 yum -y install epel-release
-yum -y install borgbackup
+yum -y install lzma borgbackup
 
 # SSH key pair to connect to the backup server
 file="${MAILSERVER_BORG_FOLDER}/ssh/ssh_key"
