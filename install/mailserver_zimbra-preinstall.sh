@@ -105,7 +105,7 @@ passwd root
 echo "You should now install Zimbra"
 
 # https://zimbra.org/download/zimbra-collaboration
-# LAST: https://files.zimbra.com/downloads/8.8.15_GA/zcs-8.8.15_GA_3829.RHEL7_64.20190718141144.tgz
+# LAST: https://files.zimbra.com/downloads/8.8.15_GA/zcs-8.8.15_GA_3869.RHEL7_64.20190918004220.tgz
 # <zimbradir>/install.sh
 #
 # Use Zimbra's package repository [Y] Y

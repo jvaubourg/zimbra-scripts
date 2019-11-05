@@ -1,4 +1,4 @@
-MAILSERVER_FILES=/tmp/zimbra_scripts/install/files
+MAILSERVER_FILES=/tmp/zimbra_scripts/install/mailserver_files
 MAILSERVER_HOSTNAME=mail
 MAILSERVER_MAIN_DOMAIN=example.com
 declare -A MAILSERVER_USERS=(
