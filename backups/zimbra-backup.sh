@@ -308,7 +308,7 @@ function zimbraBackupServerLists() {
 
     log_debug "Server/Settings: Backup aliases of list <${list_email}>"
     backup_file="${backup_path}/aliases"
-    zimbraGetListAliases "${list_email}" | (grep -F @ | grep -v '^#' || true) > "${backup_file}"
+    zimbraGetListAliases "${list_email}" | (grep -F @ | grep -v '^#' | grep -v "^${list_email}\$" || true) > "${backup_file}"
     removeFileIfEmpty "${backup_file}"
   done
 }
@@ -408,7 +408,7 @@ function zimbraBackupAccountSettingAliases() {
   local backup_file="${backup_path}/settings/aliases"
 
   install -o "${_zimbra_user}" -g "${_zimbra_group}" -d "${backup_path}"
-  zimbraGetAccountAliases "${email}" > "${backup_file}"
+  zimbraGetAccountAliases "${email}" | (grep -v "^${email}\$" || true) > "${backup_file}"
   removeFileIfEmpty "${backup_file}"
 }
 
