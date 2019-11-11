@@ -278,6 +278,7 @@ function selectAccountsToBorgRestore() {
   mount -o bind "${_borg_local_folder_configs}" "${mount_folder}"
   _used_system_mountpoints["${mount_folder}"]=1
 
+  _backups_path="${_borg_local_folder_tmp}"
   accounts_to_restore=$(selectAccountsToRestore "${_backups_include_accounts}" "${_backups_exclude_accounts}" || true)
 
   umount "${mount_folder}"
@@ -380,7 +381,6 @@ _borg_repo_accounts=
 _borg_repo_ssh_key=
 _borg_repo_ssh_port=22
 
-_backups_path=
 _backups_include_accounts=
 _backups_exclude_accounts=
 _include_all=true
@@ -433,7 +433,6 @@ fi
 
 _borg_local_folder_tmp="${_borg_local_folder_main}/tmp"
 _borg_local_folder_configs="${_borg_local_folder_main}/configs"
-_backups_path="${_borg_local_folder_main}"
 
 if [ -z "${_borg_repo_ssh_key}" ]; then
   _borg_repo_ssh_key="${_borg_local_folder_main}/private_ssh_key"
