@@ -33,7 +33,7 @@ if [ ! -f "${file}" ]; then
 fi
 
 # SSH connection doing nothing but here to force the admin to accept the remote fingerprint
-ssh -oBatchMode=yes -t -p ${BACKUPSERVER_SSH_PORT} ${borg_server} ' '
+ssh -i "${MAILSERVER_BORG_FOLDER}/ssh/ssh_key" -p "${BACKUPSERVER_SSH_PORT}" "${borg_server}" 'borg info -h' > /dev/null
 
 # Main repo creation
 export BORG_PASSPHRASE=$(openssl rand -base64 32)
@@ -56,13 +56,12 @@ cat << EOF > "${file}"
 #!/bin/bash
 
 set -xeu
-pushd "${MAILSERVER_BORG_FOLDER}/bin/" &> /dev/null || true
-source ../secrets/secrets.conf.sh
+source "${MAILSERVER_BORG_FOLDER}/secrets/secrets.conf.sh"
 
 zimbra-borg-backup.sh\\
   -a "\${BACKUPSERVER_USER}@\${BACKUPSERVER_DOMAIN}:main"\\
-  -z "\$(cat ../secrets/main_repo_passphrase)"\\
-  -k ../ssh/ssh_key\\
+  -z "\$(cat "${MAILSERVER_BORG_FOLDER}/secrets/main_repo_passphrase")"\\
+  -k "${MAILSERVER_BORG_FOLDER}/ssh/ssh_key"\\
   -t "\${BACKUPSERVER_SSH_PORT}"\\
   -r "\${BACKUPSERVER_USER}@\${BACKUPSERVER_DOMAIN}:"\\
   \${MAILSERVER_BACKUP_OPTIONS}
@@ -78,13 +77,12 @@ cat << EOF > "${file}"
 #!/bin/bash
 
 set -xeu
-pushd "${MAILSERVER_BORG_FOLDER}/bin/" &> /dev/null || true
-source ../secrets/secrets.conf.sh
+source "${MAILSERVER_BORG_FOLDER}/secrets/secrets.conf.sh"
 
 zimbra-borg-restore.sh\\
   -a "\${BACKUPSERVER_USER}@\${BACKUPSERVER_DOMAIN}:main"\\
-  -z "\$(cat ../secrets/main_repo_passphrase)"\\
-  -k ../ssh/ssh_key\\
+  -z "\$(cat "${MAILSERVER_BORG_FOLDER}/secrets/main_repo_passphrase")"\\
+  -k "${MAILSERVER_BORG_FOLDER}/ssh/ssh_key"\\
   -t "\${BACKUPSERVER_SSH_PORT}"
 EOF
 
