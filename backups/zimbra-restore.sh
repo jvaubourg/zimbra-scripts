@@ -442,7 +442,7 @@ function zimbraRestoreAccountMiscSettings() {
       local field=${setting#*-}
 
       # Best effort on the misc settings
-      if zimbraSetAccountSetting "${email}" "${field}" "${value}" &> /dev/null; then
+      if ! zimbraSetAccountSetting "${email}" "${field}" "${value}" &> /dev/null; then
         log_warn "${email}/Settings: Unable to restore <${field}> value"
       fi
     done
