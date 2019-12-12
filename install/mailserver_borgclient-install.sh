@@ -20,15 +20,20 @@ if [ ! -f "${file}" ]; then
   ssh-keygen -b 4096 -t rsa -f "${file}" -q -N ''
 
   ( set +x
+    echo
     echo "1) EXEC NOW backupserver_borg-install.sh ON THE BACKUP SERVER WITH THE PUB KEY IN secrets.conf.sh/BACKUPSERVER_SSH_AUTHORIZEDKEY"
-    echo "2) EXEC ssh -p ${BACKUPSERVER_SSH_PORT} ${borg_server} HERE JUST TO ACCEPT THE FINGERPRINT"
-    echo "3) EXEC AGAIN THIS SCRIPT HERE TO FINISH THE INSTALL"
+    echo
+    echo "2) COME BACK HERE AND EXEC AGAIN THIS SCRIPT TO FINISH THE INSTALL"
+    echo
   )
 
   cat "${file}.pub"
 
   exit 0
 fi
+
+# SSH connection doing nothing but here to force the admin to accept the remote fingerprint
+ssh -oBatchMode=yes -t -p ${BACKUPSERVER_SSH_PORT} ${borg_server} ' '
 
 # Main repo creation
 export BORG_PASSPHRASE=$(openssl rand -base64 32)
