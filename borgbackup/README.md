@@ -382,23 +382,25 @@ Borg-backup of only one account:
 
 Borg-restore of only one account:
 
-    # zimbra-borg-restore.sh -a mailbackup@mybackups.example.com:main -z 'JRX2jVkRDpH6+OQ9hw/7sWn4F0OBps42I2TQ6DvRIgI=' -k /root/borg/sshkey -t 2222 -e -r -m foo@example.com
-    2019-08-19 22:53:49| [BORG-RESTORE][INFO] Mounting and copying files from the main repository
-    2019-08-19 22:54:00| [BORG-RESTORE][INFO] Archive 2019-08-19 is used
-    2019-08-19 22:54:09| [BORG-RESTORE][INFO] Restoring account <foo@example.com>
-    2019-08-19 22:54:18| [BORG-RESTORE][INFO] foo@example.com: Archive 2019-08-19 is used
-    2019-08-19 22:54:18| [BORG-RESTORE][INFO] foo@example.com: Restoring using zimbra-restore.sh
-    2019-08-19 22:54:18| [ZIMBRA-RESTORE][INFO] Getting Zimbra main domain
-    2019-08-19 22:54:20| [ZIMBRA-RESTORE][INFO] foo@example.com: Creating account
-    2019-08-19 22:54:20| [ZIMBRA-RESTORE][INFO] foo@example.com: New password is cd5c7c348de03c284528
-    2019-08-19 22:54:20| [ZIMBRA-RESTORE][INFO] foo@example.com: Force user to change the password next time they log in
-    2019-08-19 22:54:20| [ZIMBRA-RESTORE][INFO] foo@example.com: Restoring account
-    2019-08-19 22:54:20| [ZIMBRA-RESTORE][INFO] foo@example.com: Locking for the time of the restoration
-    2019-08-19 22:54:20| [ZIMBRA-RESTORE][INFO] foo@example.com: Restoring settings
-    2019-08-19 22:54:20| [ZIMBRA-RESTORE][INFO] foo@example.com/Settings: Restoring aliases
-    2019-08-19 22:54:21| [ZIMBRA-RESTORE][INFO] foo@example.com/Settings: Restoring signatures
-    2019-08-19 22:54:21| [ZIMBRA-RESTORE][INFO] foo@example.com/Settings: Restoring other settings
-    2019-08-19 22:54:22| [ZIMBRA-RESTORE][INFO] foo@example.com: Restoring data (2.6GB compressed)
-    2019-08-19 23:06:21| [ZIMBRA-RESTORE][INFO] foo@example.com: Unlocking
-    2019-08-19 23:06:21| [ZIMBRA-RESTORE][INFO] Time used for processing this account: 00:12:01
-    2019-08-19 23:06:21| [ZIMBRA-RESTORE][INFO] Time used for processing everything: 00:12:03
+    # zimbra-borg-restore.sh -a mailbackup@mybackups.example.com:main -z 'JRX2jVkRDpH6+OQ9hw/7sWn4F0OBps42I2TQ6DvRIgI=' -k /root/borg/sshkey -t 2222 -e -m foo@example.com
+    2019-12-15 19:28:22| [BORG-RESTORE][INFO] Mounting and copying files from the main repository
+    2019-12-15 19:28:33| [BORG-RESTORE][INFO] Archive 2019-12-15 is used
+    2019-12-15 19:28:40| [BORG-RESTORE][INFO] Restoring account <foo@example.com>
+    2019-12-15 19:28:46| [BORG-RESTORE][INFO] foo@example.com: Archive 2019-12-15 is used
+    2019-12-15 19:28:46| [BORG-RESTORE][INFO] foo@example.com: Restoring using zimbra-restore.sh
+    2019-12-15 19:28:46| [ZIMBRA-RESTORE][INFO] Getting Zimbra main domain
+    2019-12-15 19:28:47| [ZIMBRA-RESTORE][INFO] foo@example.com: Creating account
+    2019-12-15 19:28:48| [ZIMBRA-RESTORE][INFO] foo@example.com: Restoring former password
+    2019-12-15 19:28:48| [ZIMBRA-RESTORE][INFO] foo@example.com: Restoring account
+    2019-12-15 19:28:48| [ZIMBRA-RESTORE][INFO] foo@example.com: Locking for the time of the restoration
+    2019-12-15 19:28:48| [ZIMBRA-RESTORE][INFO] foo@example.com: Restoring settings
+    2019-12-15 19:28:48| [ZIMBRA-RESTORE][INFO] foo@example.com/Settings: Restoring aliases
+    2019-12-15 19:28:48| [ZIMBRA-RESTORE][INFO] foo@example.com/Settings: Restoring signatures
+    2019-12-15 19:28:48| [ZIMBRA-RESTORE][INFO] foo@example.com/Settings: Restoring pref settings
+    2019-12-15 19:28:59| [ZIMBRA-RESTORE][INFO] foo@example.com/Settings: Restoring misc settings
+    2019-12-15 19:29:01| [ZIMBRA-RESTORE][INFO] foo@example.com: Restoring data (596MB compressed)
+    2019-12-15 19:32:39| [ZIMBRA-RESTORE][INFO] foo@example.com: Unlocking
+    2019-12-15 19:32:39| [ZIMBRA-RESTORE][INFO] Time used for processing this account: 00:03:52
+    2019-12-15 19:32:39| [ZIMBRA-RESTORE][INFO] Time used for processing everything: 00:03:53
+    2019-12-15 19:32:44| [BORG-RESTORE][INFO] Time used for processing this account: 00:04:04
+    2019-12-15 19:32:44| [BORG-RESTORE][INFO] Time used for processing everything: 00:04:22
