@@ -337,9 +337,7 @@ Account repository:
 
 Borg-backup of only one account:
 
-    # zimbra-borg-backup.sh -a mailbackup@mybackups.example.com:main -z 'JRX2jVkRDpH6+OQ9hw/7sWn4F0OBps42I2TQ6DvRIgI=' -r borg@testrestore.choca.pics: -k /root/borg/sshkey -t 2222 -m foo@example.com
-    
-    
+    # zimbra-borg-backup.sh -a mailbackup@mybackups.example.com:main -z 'JRX2jVkRDpH6+OQ9hw/7sWn4F0OBps42I2TQ6DvRIgI=' -r borg@testrestore.choca.pics: -k /root/borg/sshkey -t 2222 -m foo@example.com -s '.*/nobackup'
     2019-12-15 19:03:55| [BORG-BACKUP][INFO] Backuping server-side settings and Backup Config Files
     2019-12-15 19:04:05| [BORG-BACKUP][INFO] Backuping using zimbra-backup.sh
     2019-12-15 19:04:05| [ZIMBRA-BACKUP][INFO] Server/Settings: Backuping admins list
