@@ -307,26 +307,29 @@ Main repository:
 
 Account repository:
 
-    settings/all_settings
-    settings/identity/cn
-    settings/identity/givenName
-    settings/identity/displayName
-    settings/identity/userPassword
-    settings/aliases
-    settings/signatures/1.txt
-    settings/signatures/2.html
-    settings/others/001-zimbraMailSieveScript
-    settings/others/002-zimbraFeatureOutOfOfficeReplyEnabled
-    settings/others/003-zimbraPrefOutOfOfficeCacheDuration
-    settings/others/004-zimbraPrefOutOfOfficeStatusAlertOnLogin
-    data/excluded_data_paths_full
-    data/excluded_data_paths
-    data/data.tar
+    accounts/foo@example.com/settings/all_settings
+    accounts/foo@example.com/settings/identity/cn
+    accounts/foo@example.com/settings/identity/givenName
+    accounts/foo@example.com/settings/identity/displayName
+    accounts/foo@example.com/settings/identity/userPassword
+    accounts/foo@example.com/settings/aliases
+    accounts/foo@example.com/settings/signatures/1.txt
+    accounts/foo@example.com/settings/signatures/2.html
+    accounts/foo@example.com/settings/pref/zimbraPrefAccountTreeOpen
+    accounts/foo@example.com/settings/pref/zimbraPrefAdminConsoleWarnOnExit
+    accounts/foo@example.com/settings/pref/zimbraPrefAdvancedClientEnforceMinDisplay
+    ...
+    accounts/foo@example.com/settings/misc/001-zimbraFeatureMAPIConnectorEnabled
+    accounts/foo@example.com/settings/misc/002-zimbraFeatureMobileSyncEnabled
+    accounts/foo@example.com/settings/misc/003-zimbraArchiveEnabled
+    ...
+    accounts/foo@example.com/data/excluded_data_paths_full
+    accounts/foo@example.com/data/excluded_data_paths
+    accounts/foo@example.com/data/data.tar
     backup_info/command_line
     backup_info/date
     backup_info/zimbra_version
     backup_info/centos_version
-    backup_info/scripts
     backup_info/scripts/zimbra-backup.sh
     backup_info/scripts/zimbra-restore.sh
 
