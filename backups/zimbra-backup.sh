@@ -350,8 +350,6 @@ function zimbraBackupAccountPrefSettings() {
   local settings_file="${_backups_path}/accounts/${email}/settings/all_settings"
   local fields=$(grep '^zimbraPref' "${settings_file}" | sed 's/^\([^:]\+\).*/\1/' | sort)
 
-
-
   install -o "${_zimbra_user}" -g "${_zimbra_group}" -d "${backup_path}"
 
   for field in ${fields}; do

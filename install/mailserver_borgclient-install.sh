@@ -55,7 +55,7 @@ install -b -m 0700 -o root -g root -d "${MAILSERVER_BORG_FOLDER}/bin"
 cat << EOF > "${file}"
 #!/bin/bash
 
-set -xeu
+set -eu
 source "${MAILSERVER_BORG_FOLDER}/secrets/secrets.conf.sh"
 
 zimbra-borg-backup.sh\\
@@ -76,7 +76,7 @@ file="${MAILSERVER_BORG_FOLDER}/bin/run_restore.sh"
 cat << EOF > "${file}"
 #!/bin/bash
 
-set -xeu
+set -eu
 source "${MAILSERVER_BORG_FOLDER}/secrets/secrets.conf.sh"
 
 zimbra-borg-restore.sh\\
