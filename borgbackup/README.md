@@ -338,46 +338,49 @@ Account repository:
 Borg-backup of only one account:
 
     # zimbra-borg-backup.sh -a mailbackup@mybackups.example.com:main -z 'JRX2jVkRDpH6+OQ9hw/7sWn4F0OBps42I2TQ6DvRIgI=' -r borg@testrestore.choca.pics: -k /root/borg/sshkey -t 2222 -m foo@example.com
-    2019-08-19 22:32:15| [BORG-BACKUP][INFO] Backuping server-side settings and Backup Config Files
-    2019-08-19 22:32:35| [BORG-BACKUP][INFO] Backuping using zimbra-backup.sh
-    2019-08-19 22:32:35| [ZIMBRA-BACKUP][INFO] Server/Settings: Backuping admins list
-    2019-08-19 22:32:36| [ZIMBRA-BACKUP][INFO] Server/Settings: Backuping domains
-    2019-08-19 22:32:36| [ZIMBRA-BACKUP][INFO] Server/Settings: Backuping DKIM keys
-    2019-08-19 22:32:41| [ZIMBRA-BACKUP][INFO] Server/Settings: Backuping mailing lists
-    2019-08-19 22:32:45| [ZIMBRA-BACKUP][INFO] Time used for processing everything: 00:00:10
-    2019-08-19 22:32:45| [BORG-BACKUP][INFO] Sending data to Borg (new archive 2019-08-19 in the main repo)
-    2019-08-19 22:32:49| [BORG-BACKUP][INFO] Backuping account <foo@example.com>
-    2019-08-19 22:33:02| [BORG-BACKUP][INFO] foo@example.com: Backuping using zimbra-backup.sh
-    2019-08-19 22:33:02| [ZIMBRA-BACKUP][INFO] foo@example.com: Backuping settings
-    2019-08-19 22:33:02| [ZIMBRA-BACKUP][INFO] foo@example.com/Settings: Backuping raw settings file
-    2019-08-19 22:33:03| [ZIMBRA-BACKUP][INFO] foo@example.com/Settings: Backuping identity-related settings
-    2019-08-19 22:33:03| [ZIMBRA-BACKUP][INFO] foo@example.com/Settings: Backuping aliases
-    2019-08-19 22:33:03| [ZIMBRA-BACKUP][INFO] foo@example.com/Settings: Backuping signatures
-    2019-08-19 22:33:03| [ZIMBRA-BACKUP][INFO] foo@example.com/Settings: Backuping other settings
-    2019-08-19 22:33:04| [ZIMBRA-BACKUP][INFO] foo@example.com: Backuping data
-    2019-08-19 22:33:15| [ZIMBRA-BACKUP][INFO] foo@example.com/Data: 743MB will be excluded (2 folders)
-    2019-08-19 22:33:15| [ZIMBRA-BACKUP][INFO] foo@example.com/Data: 2.6GB are going to be backuped
-    2019-08-19 22:43:10| [ZIMBRA-BACKUP][INFO] Time used for processing this account: 00:10:08
-    2019-08-19 22:43:13| [ZIMBRA-BACKUP][INFO] Time used for processing everything: 00:10:11
-    2019-08-19 22:43:13| [BORG-BACKUP][INFO] foo@example.com: Sending data to Borg (new archive 2019-08-19 in the account repo)
+    
+    
+    2019-12-15 19:03:55| [BORG-BACKUP][INFO] Backuping server-side settings and Backup Config Files
+    2019-12-15 19:04:05| [BORG-BACKUP][INFO] Backuping using zimbra-backup.sh
+    2019-12-15 19:04:05| [ZIMBRA-BACKUP][INFO] Server/Settings: Backuping admins list
+    2019-12-15 19:04:05| [ZIMBRA-BACKUP][INFO] Server/Settings: Backuping domains
+    2019-12-15 19:04:05| [ZIMBRA-BACKUP][INFO] Server/Settings: Backuping DKIM keys
+    2019-12-15 19:04:11| [ZIMBRA-BACKUP][INFO] Server/Settings: Backuping mailing lists
+    2019-12-15 19:04:14| [ZIMBRA-BACKUP][INFO] Time used for processing everything: 00:00:09
+    2019-12-15 19:04:14| [BORG-BACKUP][INFO] Sending data to Borg (new archive 2019-12-15 in the main repo)
+    2019-12-15 19:04:20| [BORG-BACKUP][INFO] Backuping account <foo@example.com>
+    2019-12-15 19:04:34| [BORG-BACKUP][INFO] foo@example.com: Backuping using zimbra-backup.sh
+    2019-12-15 19:04:34| [ZIMBRA-BACKUP][INFO] foo@example.com: Backuping settings
+    2019-12-15 19:04:34| [ZIMBRA-BACKUP][INFO] foo@example.com/Settings: Backuping raw settings file
+    2019-12-15 19:04:34| [ZIMBRA-BACKUP][INFO] foo@example.com/Settings: Backuping identity-related settings
+    2019-12-15 19:04:34| [ZIMBRA-BACKUP][INFO] foo@example.com/Settings: Backuping aliases
+    2019-12-15 19:04:35| [ZIMBRA-BACKUP][INFO] foo@example.com/Settings: Backuping signatures
+    2019-12-15 19:04:35| [ZIMBRA-BACKUP][INFO] foo@example.com/Settings: Backuping pref settings
+    2019-12-15 19:04:39| [ZIMBRA-BACKUP][INFO] foo@example.com/Settings: Backuping misc settings
+    2019-12-15 19:04:40| [ZIMBRA-BACKUP][INFO] foo@example.com: Backuping data
+    2019-12-15 19:04:47| [ZIMBRA-BACKUP][INFO] foo@example.com/Data: 13MB will be excluded (2 folders)
+    2019-12-15 19:04:47| [ZIMBRA-BACKUP][INFO] foo@example.com/Data: 611MB are going to be backuped
+    2019-12-15 19:05:25| [ZIMBRA-BACKUP][INFO] Time used for processing this account: 00:00:51
+    2019-12-15 19:05:28| [ZIMBRA-BACKUP][INFO] Time used for processing everything: 00:00:54
+    2019-12-15 19:05:28| [BORG-BACKUP][INFO] foo@example.com: Sending data to Borg (new archive 2019-12-15 in the account repo)
     ------------------------------------------------------------------------------
-    Archive name: 2019-08-19
-    Archive fingerprint: fdf269050dbd9edabd3ff9f35e075f1b1a59598a2f2bf0ad39de1abab62f1bfb
-    Time (start): Mon, 2019-08-19 22:43:17
-    Time (end):   Mon, 2019-08-19 22:46:03
-    Duration: 2 minutes 45.94 seconds
-    Number of files: 14
+    Archive name: 2019-12-15
+    Archive fingerprint: c177dec1b38dd252ed30b34e9e17c52b79eabbe9802a70fffba1763d4faadb91
+    Time (start): Sun, 2019-12-15 19:05:32
+    Time (end):   Sun, 2019-12-15 19:05:50
+    Duration: 18.09 seconds
+    Number of files: 189
     Utilization of max. archive size: 0%
     ------------------------------------------------------------------------------
                            Original size      Compressed size    Deduplicated size
-    This archive:                2.78 GB              2.64 GB              1.47 GB
-    All archives:                5.57 GB              5.27 GB              4.00 GB
+    This archive:              624.18 MB            588.34 MB            129.64 MB
+    All archives:                1.26 GB              1.19 GB            690.42 MB
     
                            Unique chunks         Total chunks
-    Chunk index:                    1461                 2148
+    Chunk index:                     345                  854
     ------------------------------------------------------------------------------
-    2019-08-19 22:46:04| [BORG-BACKUP][INFO] Time used for processing this account: 00:13:15
-    2019-08-19 22:46:04| [BORG-BACKUP][INFO] Time used for processing everything: 00:13:38
+    2019-12-15 19:05:51| [BORG-BACKUP][INFO] Time used for processing this account: 00:01:31
+    2019-12-15 19:05:51| [BORG-BACKUP][INFO] Time used for processing everything: 00:01:56
 
 Borg-restore of only one account:
 
