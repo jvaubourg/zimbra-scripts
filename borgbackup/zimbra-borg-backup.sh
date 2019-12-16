@@ -188,6 +188,8 @@ USAGE
 # Currently do nothing (Borg cannot really fail in the middle of an archive creation)
 function cleanFailedProcess() {
   log_debug "Cleaning after fail"
+
+  # Nothing to do here for now
 }
 
 # Remove and create again the Borg TMP folder where the backups are done before
