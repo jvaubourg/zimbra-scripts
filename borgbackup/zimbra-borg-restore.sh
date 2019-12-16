@@ -363,7 +363,7 @@ function borgRestoreAccount() {
 
   # Umount repository and bound account folder
   local umounted=false
-  until $umounted; do
+  until ${umounted}; do
     umount "${account_folder}" && umounted=true || sleep 1
   done
   unset _used_system_mountpoints["${account_folder}"]
