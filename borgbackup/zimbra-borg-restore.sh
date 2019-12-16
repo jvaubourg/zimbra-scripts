@@ -362,9 +362,9 @@ function borgRestoreAccount() {
     zimbra-restore.sh "${restore_options[@]}"
 
   # Umount repository and bound account folder
-  false || while [ $? -ne 0 ]; do
-    sleep 1
-    umount "${account_folder}" &> /dev/null
+  local umounted=false
+  until $umounted; do
+    umount "${account_folder}" && umounted=true || sleep 1
   done
   unset _used_system_mountpoints["${account_folder}"]
 
