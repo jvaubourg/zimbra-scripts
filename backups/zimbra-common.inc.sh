@@ -500,11 +500,16 @@ function zimbraSetAccountLock() {
   local status=active
   local cmd=
 
+  # The maintenance status would be more appropriate but it doesn't enable to use zmmmailbox commands
+  # (ERROR: service.AUTH_EXPIRED)
   if ${lock}; then
-    status=pending
+    status=locked
   fi
 
-  cmd=(fastzmprov modifyAccount "${email}" zimbraAccountStatus "${status}")
+  # The fast prompt is not used here because the SOAP config is not correctly updated when modified
+  # with LDAP provisionning... it looks like a bug in Zimbra
+  cmd=(zmprov modifyAccount "${email}" zimbraAccountStatus "${status}")
+
   execZimbraCmd cmd
 }
 
@@ -544,7 +549,9 @@ function zimbraSetAccountSetting() {
 function zimbraSetAccountData() {
   local email="${1}"
   local backup_file="${2}"
-  local cmd=(zmmailbox --zadmin --mailbox "${email}" -t 0 postRestURL --url https://localhost:8443 '/?fmt=tar&resolve=reset' "${backup_file}")
+
+  # The skip resolve method is a bit slower than reset but it enables to not drop incoming mails during the restoration process
+  local cmd=(zmmailbox --zadmin --mailbox "${email}" -t 0 postRestURL --url https://localhost:8443 '/?fmt=tar&resolve=skip' "${backup_file}")
 
   execZimbraCmd cmd
 }
