@@ -342,6 +342,7 @@ function borgRestoreAccount() {
   log_info "${email}: Archive ${date_archive} is used"
 
   # Mount the archive into the account folder to let zimbra-restore.sh find it
+  log_debug "${email}: Bind the archive"
   mount -o bind "${archive_folder}" "${account_folder}"
   _used_system_mountpoints["${account_folder}"]=1
 
@@ -361,10 +362,11 @@ function borgRestoreAccount() {
   FASTZMPROV_TMP="${_fastprompt_zmprov_tmp}" FASTZMMAILBOX_TMP="${_fastprompt_zmmailbox_tmp}" \
     zimbra-restore.sh "${restore_options[@]}"
 
-  # Umount repository and bound account folder
+  # The loop is used to be sure that all tail processes are done in zimbra-restore.sh
   local umounted=false
   until ${umounted}; do
-    umount "${account_folder}" && umounted=true || sleep 1
+    log_debug "${email}: Unbind the archive"
+    umount "${account_folder}" 2> /dev/null && umounted=true || sleep 1
   done
   unset _used_system_mountpoints["${account_folder}"]
 

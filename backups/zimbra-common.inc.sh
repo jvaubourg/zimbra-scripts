@@ -130,7 +130,7 @@ function execFastPrompt() {
     elif [[ "${out_line}" =~ "${prompt_delimiter}" ]]; then
       delimiter_has_been_executed=true
     fi
-  done < <(tail --follow=name "${out_file}" 2> /dev/null || true)
+  done < <(tail -f --pid=$$ "${out_file}" 2> /dev/null || true)
 
   # Display the result of the subcommand
   # We really hope here that nobody uses ERROR: at the beginning of a line in a signature or anything else
@@ -139,6 +139,9 @@ function execFastPrompt() {
   else
     head -n -3 "${out_file}" | tail -n +2
   fi
+
+  # Ensure that the while's tail gets at least an EOL even if the EOF was truncated
+  printf '\n' > "${cmd_pipe}"
 }
 
 # Switch from an account to another one in the prompt of zmmailbox
@@ -160,17 +163,21 @@ function initFastPrompts() {
 
     # fastzmprov
     if [ -z "${_fastprompt_zmprov_tmp}" ]; then
+      log_debug "Open the fast zmprov prompt"
+
       _fastprompt_zmprov_tmp=$(mktemp -d)
       mkfifo "${_fastprompt_zmprov_tmp}/cmd"
-      exec sudo -u "${_zimbra_user}" env "${path}" stdbuf -o0 -e0 zmprov --ldap < <(tail --follow=name "${_fastprompt_zmprov_tmp}/cmd" 2> /dev/null || true) &>> "${_fastprompt_zmprov_tmp}/out" &
+      exec sudo -u "${_zimbra_user}" env "${path}" stdbuf -o0 -e0 zmprov --ldap < <(tail -f --pid=$$ "${_fastprompt_zmprov_tmp}/cmd" 2> /dev/null || true) &>> "${_fastprompt_zmprov_tmp}/out" &
       _fastprompt_zmprov_pid="${!}"
     fi
 
     # fastzmmailbox
     if [ -z "${_fastprompt_zmmailbox_tmp}" ]; then
+      log_debug "Open the fast zmmailbox prompt"
+
       _fastprompt_zmmailbox_tmp=$(mktemp -d)
       mkfifo "${_fastprompt_zmmailbox_tmp}/cmd"
-      exec sudo -u "${_zimbra_user}" env "${path}" stdbuf -o0 -e0 zmmailbox --zadmin < <(tail --follow=name "${_fastprompt_zmmailbox_tmp}/cmd" 2> /dev/null || true) &>> "${_fastprompt_zmmailbox_tmp}/out" &
+      exec sudo -u "${_zimbra_user}" env "${path}" stdbuf -o0 -e0 zmmailbox --zadmin < <(tail -f --pid=$$ "${_fastprompt_zmmailbox_tmp}/cmd" 2> /dev/null || true) &>> "${_fastprompt_zmmailbox_tmp}/out" &
       _fastprompt_zmmailbox_pid="${!}"
     fi
   fi
