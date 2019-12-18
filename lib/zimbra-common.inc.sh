@@ -3,23 +3,8 @@
 # https://github.com/jvaubourg/zimbra-scripts
 
 
-########################
-### GLOBAL VARIABLES ###
-########################
-
-# Default values (can be changed with parent script options)
-_log_id=UNKNOWN
-_backups_path=/tmp/zimbra_backups
-_zimbra_main_path=/opt/zimbra
-_zimbra_user=zimbra
-_zimbra_group=zimbra
-_existing_accounts=
-_process_timer=
-_debug_mode=0
-
-
 #############
-## GENERAL ##
+## HELPERS ##
 #############
 
 function log() { printf '%s| [%s]%s\n' "$(date +'%F %T')" "${_log_id}" "${1}"; }
@@ -55,6 +40,26 @@ function setZimbraPermissions() {
 
   chown -R "${_zimbra_user}:${_zimbra_group}" "${folder}"
 }
+
+
+########################
+### GLOBAL VARIABLES ###
+########################
+
+# Default values (can be changed with parent script options)
+_log_id=UNKNOWN
+_backups_path=/tmp/zimbra_backups
+_zimbra_main_path=/opt/zimbra
+_zimbra_user=zimbra
+_zimbra_group=zimbra
+_existing_accounts=
+_process_timer=
+_debug_mode=0
+
+
+######################
+### CORE FUNCTIONS ###
+######################
 
 # Return a list of email accounts to backup, depending on the include/exclude lists
 # Used by zimbra-backup and zimbra-borg-backup

@@ -5,14 +5,6 @@
 source /usr/share/zimbra-scripts/lib/zimbra-exec.inc.sh
 
 
-########################
-### GLOBAL VARIABLES ###
-########################
-
-# Will be filled by zimbraGetMainDomain
-_zimbra_install_domain=
-
-
 ###############
 ### HELPERS ###
 ###############
@@ -143,11 +135,6 @@ function zimbraGetFolderAttributes() {
   local path="${2}"
   local cmd=(fastzmmailbox getFolder "${path}")
   execZimbraCmd cmd
-}
-
-function zimbraIsInstallUser() {
-  local email="${1}"
-  [ "${email}" = "admin@${_zimbra_install_domain}" ]
 }
 
 function zimbraIsAccountExisting() {

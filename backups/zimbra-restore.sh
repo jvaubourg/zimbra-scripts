@@ -118,6 +118,12 @@ USAGE
   exit "${status}"
 }
 
+function isZimbraInstallUser() {
+  local email="${1}"
+
+  [ "${email}" = "admin@${_zimbra_main_domain}" ]
+}
+
 
 ####################
 ## CORE FUNCTIONS ##
@@ -192,7 +198,7 @@ function zimbraRestoreDomains() {
 
   if [ -n "${domains}" ]; then
     for domain in ${domains}; do
-      if [ "${domain}" != "${_zimbra_install_domain}" ]; then
+      if [ "${domain}" != "${_zimbra_main_domain}" ]; then
         log_debug "Server/Settings: Create domain <${domain}>"
         zimbraCreateDomain "${domain}"
       else
@@ -359,7 +365,7 @@ function zimbraRestoreAccountAliases() {
 
   if [ -f "${backup_file}" -a -s "${backup_file}" ]; then
     while read alias; do
-      if [ "${alias}" != "root@${_zimbra_install_domain}" -a "${alias}" != "postmaster@${_zimbra_install_domain}" ]; then
+      if [ "${alias}" != "root@${_zimbra_main_domain}" -a "${alias}" != "postmaster@${_zimbra_main_domain}" ]; then
         log_debug "${email}/Settings: Create alias <${alias}>"
         zimbraSetAccountAlias "${email}" "${alias}"
       else
@@ -491,6 +497,7 @@ function zimbraRestoreAccountDataExcludedPaths() {
 ########################
 
 _log_id=ZIMBRA-RESTORE
+_zimbra_main_domain=
 _backups_include_accounts=
 _backups_exclude_accounts=
 _option_force_change_passwords=false
@@ -588,8 +595,8 @@ fi
 initFastPrompts
 
 log_info "Getting Zimbra main domain"
-_zimbra_install_domain=$(zimbraGetMainDomain || true)
-log_debug "Zimbra main domain is <${_zimbra_install_domain}>"
+_zimbra_main_domain=$(zimbraGetMainDomain || true)
+log_debug "Zimbra main domain is <${_zimbra_main_domain}>"
 
 (${_include_all} || ${_include_server_settings}) && {
   log_info "Server/Settings: Restoring domains"
@@ -621,7 +628,7 @@ log_debug "Zimbra main domain is <${_zimbra_install_domain}>"
 
         # Create account
         (${_include_all} || ${_include_accounts_settings}) && {
-          if zimbraIsInstallUser "${email}"; then
+          if isZimbraInstallUser "${email}"; then
             log_debug "${email}: Creation has been skipped because it's the user used for installing the server"
           else
             # Create account with the identity-related settings
