@@ -17,7 +17,9 @@ yum -y install git
 pushd /usr/share/
   git clone https://github.com/jvaubourg/zimbra-scripts.git
 popd
-source /usr/share/zimbra-scripts/backups/zimbra-common.inc.sh
+
+source /usr/share/zimbra-scripts/lib/zimbra-common.inc.sh
+source /usr/share/zimbra-scripts/lib/zimbra-api.inc.sh
 
 ln -s /usr/share/zimbra-scripts/backups/zimbra-backup.sh /usr/local/bin/
 ln -s /usr/share/zimbra-scripts/backups/zimbra-restore.sh /usr/local/bin/

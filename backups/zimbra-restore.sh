@@ -12,7 +12,8 @@ set -o nounset
 ## HELPERS ##
 #############
 
-source /usr/share/zimbra-scripts/backups/zimbra-common.inc.sh
+source /usr/share/zimbra-scripts/lib/zimbra-common.inc.sh
+source /usr/share/zimbra-scripts/lib/zimbra-api.inc.sh
 
 # Help function
 function exit_usage() {
@@ -508,7 +509,7 @@ declare -A _generated_account_passwords
 declare -A _generated_dkim_keys
 
 # Traps
-trap 'trap_exit $LINENO' EXIT TERM ERR
+trap 'trap_zimbra-exec_exit $LINENO' EXIT TERM ERR
 trap 'exit 1' INT
 
 
