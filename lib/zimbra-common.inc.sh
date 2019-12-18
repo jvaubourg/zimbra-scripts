@@ -56,15 +56,8 @@ function setZimbraPermissions() {
   chown -R "${_zimbra_user}:${_zimbra_group}" "${folder}"
 }
 
-
-
-# Hides IDs returned by Zimbra when creating an object
-# (Zimbra sometimes displays errors directly to stdout)
-function hideReturnedId() {
-  grep -v '^[a-f0-9-]\+$' || true
-}
-
 # Return a list of email accounts to backup, depending on the include/exclude lists
+# Used by zimbra-backup and zimbra-borg-backup
 function selectAccountsToBackup() {
   local include_accounts="${1}"
   local exclude_accounts="${2}"
@@ -94,6 +87,7 @@ function selectAccountsToBackup() {
 }
 
 # Return a list of email accounts to restore, depending on the include/exclude lists
+# Used by zimbra-restore and zimbra-borg-restore
 function selectAccountsToRestore() {
   local include_accounts="${1}"
   local exclude_accounts="${2}"

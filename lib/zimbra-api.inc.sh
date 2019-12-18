@@ -13,6 +13,17 @@ source /usr/share/zimbra-scripts/lib/zimbra-exec.inc.sh
 _zimbra_install_domain=
 
 
+###############
+### HELPERS ###
+###############
+
+# Hides IDs returned by Zimbra when creating an object
+# (Zimbra sometimes displays errors directly to stdout)
+function hideReturnedId() {
+  grep -v '^[a-f0-9-]\+$' || true
+}
+
+
 ######################
 ## ZIMBRA CLI & API ##
 ######################
