@@ -218,8 +218,16 @@ fi
 log_debug "Check expiration date of the current certificate"
 
 if letsencryptHasToBeRenewed; then
-  log_info "Zimbra has to get a fresh Let's Encrypt certificate"
+  log_info "Zimbra has to get a fresh new Let's Encrypt certificate"
   log_info "Getting Zimbra main domain and admin email address"
+
+  _zimbra_main_domain=$(zimbraGetMainDomain || true)
+  _server_hostname=$(hostname --fqdn || true)
+  log_debug "Zimbra main domain is <${_zimbra_main_domain}>"
+  log_debug "Server hostname is <${_server_hostname}>"
+
+  _zimbra_admin_account=$(zimbraGetAdminAccounts | head -n 1 || true)
+  log_debug "Zimbra admin email address is <${_zimbra_install_domain}>"
 
   if [ "${_debug_mode}" -gt 0 ]; then
     _debug_ask_stopping=no
@@ -229,14 +237,6 @@ if letsencryptHasToBeRenewed; then
   if [[ "${_debug_ask_stopping^^}" =~ ^Y(ES)?$ ]]; then
     log_info "Stopping Zimbra"
     zimbraStop
-
-    _zimbra_main_domain=$(zimbraGetMainDomain || true)
-    _server_hostname=$(hostname --fqdn || true)
-    log_debug "Zimbra main domain is <${_zimbra_main_domain}>"
-    log_debug "Server hostname is <${_server_hostname}>"
-
-    _zimbra_admin_account=$(zimbraGetAdminAccounts | head -n 1 || true)
-    log_debug "Zimbra admin email address is <${_zimbra_install_domain}>"
 
     log_info "Downloading of a new Let's Encrypt certificate"
     letsencryptRenew
