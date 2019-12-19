@@ -215,6 +215,8 @@ fi
 ### MAIN SCRIPT ###
 ###################
 
+initFastPrompts
+
 log_debug "Check expiration date of the current certificate"
 
 if letsencryptHasToBeRenewed; then
