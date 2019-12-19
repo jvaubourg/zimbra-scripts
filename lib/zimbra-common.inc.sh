@@ -10,8 +10,8 @@
 function log() { printf '%s| [%s]%s\n' "$(date +'%F %T')" "${_log_id}" "${1}"; }
 function log_debug() { ([ "${_debug_mode}" -ge 1 ] && log "[DEBUG] ${1}" >&2) || true; }
 function log_info() { log "[INFO] ${1}"; }
-function log_warn() { log "[WARN] ${1}" >&2; }
-function log_err() { log "[ERR] ${1}" >&2; }
+function log_warn() { log "[WARNING] ${1}" >&2; }
+function log_err() { log "[ERROR] ${1}" >&2; }
 
 function resetAccountProcessDuration() {
   _process_timer="${SECONDS}"
