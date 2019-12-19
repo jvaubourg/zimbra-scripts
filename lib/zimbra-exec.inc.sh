@@ -28,7 +28,7 @@ function initFastPrompts() {
   _fastprompts_enabled=true
 
   # fastzmprov
-  if [ -z "${_fastprompt_zmprov_tmp}" ]; then
+  if [ -z "${_fastprompt_zmprov_pid}" ]; then
     log_debug "Open the fast zmprov prompt"
 
     _fastprompt_zmprov_tmp=$(mktemp -d)
@@ -38,7 +38,7 @@ function initFastPrompts() {
   fi
 
   # fastzmmailbox
-  if [ -z "${_fastprompt_zmmailbox_tmp}" ]; then
+  if [ -z "${_fastprompt_zmmailbox_pid}" ]; then
     log_debug "Open the fast zmmailbox prompt"
 
     _fastprompt_zmmailbox_tmp=$(mktemp -d)
