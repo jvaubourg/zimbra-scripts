@@ -1,0 +1,9 @@
+[Unit]
+Description=Everyday Let's Encrypt certificates checking for Zimbra
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/autorun-zimbra-letsencrypt.sh
+
+[Install]
+WantedBy=multi-user.target

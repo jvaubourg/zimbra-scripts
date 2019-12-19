@@ -524,6 +524,7 @@ trap 'exit 1' INT
 ### OPTIONS ###
 ###############
 
+# Some default values are located in zimbra-common
 while getopts 'm:x:frb:p:u:i:d:h' opt; do
   case "${opt}" in
     m) _backups_include_accounts=$(echo -E ${_backups_include_accounts} ${OPTARG}) ;;

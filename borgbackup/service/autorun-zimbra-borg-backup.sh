@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -xeu
+set -eu
 
 run_script=/usr/local/bin/run-zimbra-borg-backup.sh
 

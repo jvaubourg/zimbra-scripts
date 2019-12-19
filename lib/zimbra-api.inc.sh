@@ -300,3 +300,16 @@ function zimbraCreateDataFolder() {
   local cmd=(fastzmmailbox createFolder "${folder}")
   execZimbraCmd cmd | hideReturnedId
 }
+
+function zimbraDeployCertificates() {
+  local private_cert_path="${1}"
+  local public_cert_path="${2}"
+  local ca_bundle_path="${3}"
+  local cmd=(zmcertmgr deploycrt comm "${public_cert_path}" "${ca_bundle_path}")
+
+  # The private key has to be copied before when the CSR was not created on Zimbra
+  cp -a "${private_cert_path}" "${_zimbra_main_path}/ssl/zimbra/commercial/commercial.key"
+  setZimbraPermissions "${_zimbra_main_path}/ssl/zimbra/"
+
+  execZimbraCmd cmd
+}
