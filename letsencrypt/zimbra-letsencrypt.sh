@@ -241,7 +241,9 @@ if letsencryptHasToBeRenewed; then
     zimbraStop
 
     log_info "Downloading of a new Let's Encrypt certificate"
+    printf -- '---------------------------------------------------\n'
     letsencryptRenew
+    printf -- '---------------------------------------------------\n'
 
     log_debug "Create a new CA bundle"
     letsencryptCreateCaBundle
