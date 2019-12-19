@@ -85,7 +85,18 @@ function zimbraStart() {
 ## CORE FUNCTIONS ##
 ####################
 
-# Called by the main trap if an error occured and the script stops
+# Called when the script quits
+function trap_exit() {
+  local status="${?}"
+  local line="${1}"
+
+  trap - EXIT TERM ERR INT
+
+  closeFastPrompts
+  trap_common_exit "${status}" "${line}"
+}
+
+# Called by the common_exit trap when an error occured
 function cleanFailedProcess() {
   log_debug "Cleaning after fail"
 
@@ -184,7 +195,7 @@ _max_number_of_days_before_expiration=27
 _debug_ask_stopping=yes
 
 # Traps
-trap 'trap_zimbra-exec_exit $LINENO' EXIT TERM ERR
+trap 'trap_exit $LINENO' EXIT TERM ERR
 trap 'exit 1' INT
 
 

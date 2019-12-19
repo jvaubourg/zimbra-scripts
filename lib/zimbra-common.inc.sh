@@ -13,6 +13,25 @@ function log_info() { log "[INFO] ${1}"; }
 function log_warn() { log "[WARNING] ${1}" >&2; }
 function log_err() { log "[ERROR] ${1}" >&2; }
 
+# Warning: traps can be thrown inside command substitutions $(...) and don't stop the main process in this case
+function trap_common_exit() {
+  local status="${1}"
+  local line="${2}"
+
+  if [ "${status}" -ne 0 ]; then
+    if [ "${line}" -gt 1 ]; then
+      log_err "There was an unexpected interruption on line ${line}"
+    fi
+
+    log_err "Process aborted"
+    cleanFailedProcess
+  else
+    log_debug "Process done"
+  fi
+
+  exit "${status}"
+}
+
 function resetAccountProcessDuration() {
   _process_timer="${SECONDS}"
 }

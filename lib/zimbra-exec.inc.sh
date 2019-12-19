@@ -20,45 +20,6 @@ _fastprompt_zmmailbox_email=
 ## FAST PROMPTS ##
 ##################
 
-# Warning: traps can be thrown inside command substitutions $(...) and don't stop the main process in this case
-function trap_zimbra-exec_exit() {
-  local status="${?}"
-  local line="${1}"
-
-  trap - EXIT TERM ERR INT
-
-  if [ -n "${_fastprompt_zmprov_pid}" ]; then
-    log_debug "Close the fast zmprov prompt"
-
-    echo exit > "${_fastprompt_zmprov_tmp}/cmd"
-    wait "${_fastprompt_zmprov_pid}"
-    rm -rf "${_fastprompt_zmprov_tmp}"
-    _fastprompt_zmprov_pid=
-  fi
-
-  if [ -n "${_fastprompt_zmmailbox_pid}" ]; then
-    log_debug "Close the fast zmmailbox prompt"
-
-    echo exit > "${_fastprompt_zmmailbox_tmp}/cmd"
-    wait "${_fastprompt_zmmailbox_pid}"
-    rm -rf "${_fastprompt_zmmailbox_tmp}"
-    _fastprompt_zmmailbox_pid=
-  fi
-
-  if [ "${status}" -ne 0 ]; then
-    if [ "${line}" -gt 1 ]; then
-      log_err "There was an unexpected interruption on line ${line}"
-    fi
-
-    log_err "Process aborted"
-    cleanFailedProcess
-  else
-    log_debug "Process done"
-  fi
-
-  exit "${status}"
-}
-
 # Every Zimbra CLI command (zmprov, zmmailbox, etc) can be used with a prompt
 # Opening these prompts and feeding them with subcommands is way way faster
 # than executing the commands each time (only one Java VM instantiated)
@@ -85,6 +46,27 @@ function initFastPrompts() {
     mkfifo "${_fastprompt_zmmailbox_tmp}/cmd"
     exec sudo -u "${_zimbra_user}" env "${path}" stdbuf -o0 -e0 zmmailbox --zadmin < <(tail -f --pid=$$ "${_fastprompt_zmmailbox_tmp}/cmd" 2> /dev/null || true) &>> "${_fastprompt_zmmailbox_tmp}/out" &
     _fastprompt_zmmailbox_pid="${!}"
+  fi
+}
+
+# Close fast prompts if opened
+function closeFastPrompts() {
+  if [ -n "${_fastprompt_zmprov_pid}" ]; then
+    log_debug "Close the fast zmprov prompt"
+
+    echo exit > "${_fastprompt_zmprov_tmp}/cmd"
+    wait "${_fastprompt_zmprov_pid}"
+    rm -rf "${_fastprompt_zmprov_tmp}"
+    _fastprompt_zmprov_pid=
+  fi
+
+  if [ -n "${_fastprompt_zmmailbox_pid}" ]; then
+    log_debug "Close the fast zmmailbox prompt"
+
+    echo exit > "${_fastprompt_zmmailbox_tmp}/cmd"
+    wait "${_fastprompt_zmmailbox_pid}"
+    rm -rf "${_fastprompt_zmmailbox_tmp}"
+    _fastprompt_zmmailbox_pid=
   fi
 }
 

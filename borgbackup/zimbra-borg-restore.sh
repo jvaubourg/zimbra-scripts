@@ -158,7 +158,18 @@ USAGE
 ## CORE FUNCTIONS ##
 ####################
 
-# Called by the main trap if an error occured and the script stops
+# Called when the script quits
+function trap_exit() {
+  local status="${?}"
+  local line="${1}"
+
+  trap - EXIT TERM ERR INT
+
+  closeFastPrompts
+  trap_common_exit "${status}" "${line}"
+}
+
+# Called by the common_exit trap when an error occured
 # Umount all directories currently mounted
 function cleanFailedProcess() {
   local ask_umount=yes
@@ -406,7 +417,7 @@ declare -A _used_borg_mountpoints
 declare -A _used_system_mountpoints
 
 # Traps
-trap 'trap_zimbra-exec_exit $LINENO' EXIT TERM ERR
+trap 'trap_exit $LINENO' EXIT TERM ERR
 trap 'exit 1' INT
 
 

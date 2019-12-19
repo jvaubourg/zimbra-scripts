@@ -129,7 +129,18 @@ function isZimbraInstallUser() {
 ## CORE FUNCTIONS ##
 ####################
 
-# Called by the main trap if an error occured and the script stops
+# Called when the script quits
+function trap_exit() {
+  local status="${?}"
+  local line="${1}"
+
+  trap - EXIT TERM ERR INT
+
+  closeFastPrompts
+  trap_common_exit "${status}" "${line}"
+}
+
+# Called by the common_exit trap when an error occured
 # Remove the incomplete account if the error occured during its restoration
 function cleanFailedProcess() {
   log_debug "Cleaning after fail"
@@ -516,7 +527,7 @@ declare -A _generated_account_passwords
 declare -A _generated_dkim_keys
 
 # Traps
-trap 'trap_zimbra-exec_exit $LINENO' EXIT TERM ERR
+trap 'trap_exit $LINENO' EXIT TERM ERR
 trap 'exit 1' INT
 
 
