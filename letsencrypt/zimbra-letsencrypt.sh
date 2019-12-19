@@ -229,7 +229,7 @@ if letsencryptHasToBeRenewed; then
   log_debug "Server hostname is <${_server_hostname}>"
 
   _zimbra_admin_account=$(zimbraGetAdminAccounts | head -n 1 || true)
-  log_debug "Zimbra admin email address is <${_zimbra_main_domain}>"
+  log_debug "Zimbra admin email address is <${_zimbra_admin_account}>"
 
   if [ "${_debug_mode}" -gt 0 ]; then
     _debug_ask_stopping=no
