@@ -92,18 +92,19 @@ function trap_exit() {
 
   trap - EXIT TERM ERR INT
 
-  closeFastPrompts
+  if ${_zimbra_stopped}; then
+    log_info "Starting Zimbra"
+    zimbraStart
+  else
+    closeFastPrompts
+  fi
+
   trap_common_exit "${status}" "${line}"
 }
 
 # Called by the common_exit trap when an error occured
 function cleanFailedProcess() {
   log_debug "Cleaning after fail"
-
-  if ${_zimbra_stopped}; then
-    log_info "Starting Zimbra"
-    zimbraStart
-  fi
 }
 
 # Return true when the Let's Encrypt certificate has to be renewed
@@ -249,6 +250,7 @@ if letsencryptHasToBeRenewed; then
 
   if [[ "${_debug_ask_stopping^^}" =~ ^Y(ES)?$ ]]; then
     log_info "Stopping Zimbra"
+    closeFastPrompts
     zimbraStop
 
     log_info "Downloading of a new Let's Encrypt certificate"

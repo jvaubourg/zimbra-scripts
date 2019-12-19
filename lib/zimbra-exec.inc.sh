@@ -24,9 +24,8 @@ _fastprompt_zmmailbox_email=
 # Opening these prompts and feeding them with subcommands is way way faster
 # than executing the commands each time (only one Java VM instantiated)
 function initFastPrompts() {
-  _fastprompts_enabled=true
-
   local path="PATH=/sbin:/bin:/usr/sbin:/usr/bin:${_zimbra_main_path}/bin:${_zimbra_main_path}/libexec"
+  _fastprompts_enabled=true
 
   # fastzmprov
   if [ -z "${_fastprompt_zmprov_tmp}" ]; then
@@ -51,6 +50,8 @@ function initFastPrompts() {
 
 # Close fast prompts if opened
 function closeFastPrompts() {
+  _fastprompts_enabled=false
+
   if [ -n "${_fastprompt_zmprov_pid}" ]; then
     log_debug "Close the fast zmprov prompt"
 
