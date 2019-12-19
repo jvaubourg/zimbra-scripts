@@ -161,7 +161,7 @@ USAGE
 # Called by the main trap if an error occured and the script stops
 # Umount all directories currently mounted
 function cleanFailedProcess() {
-  local ask_umount=y
+  local ask_umount=yes
 
   log_debug "Cleaning after fail"
 
@@ -169,7 +169,7 @@ function cleanFailedProcess() {
     read -p "Umount system and Borg mountpoints in <${_borg_local_folder_tmp}> (default: Y)? " ask_umount
   fi
 
-  if [ -z "${ask_umount}" -o "${ask_umount}" = Y -o "${ask_umount}" = y ]; then
+  if [ -z "${ask_umount}" ] || [[ "${ask_umount^^}" =~ ^Y(ES)?$ ]]; then
     if [ "${#_used_system_mountpoints[@]}" -gt 0 ]; then
       for mount_folder in "${!_used_system_mountpoints[@]}"; do
         log_debug "Umounting <${mount_folder}>"
@@ -194,13 +194,13 @@ function cleanFailedProcess() {
 # Remove and create again the Borg TMP folder where the backups are done before
 # sending data to the server
 function emptyTmpFolder() {
-  local ask_remove=y
+  local ask_remove=yes
 
   if [ "${_debug_mode}" -gt 0 ]; then
     read -p "Empty the Borg TMP folder <${_borg_local_folder_tmp}> (default: Y)? " ask_remove
   fi
 
-  if [ -z "${ask_remove}" -o "${ask_remove}" = Y -o "${ask_remove}" = y ]; then
+  if [ -z "${ask_remove}" ] || [[ "${ask_remove^^}" =~ ^Y(ES)?$ ]]; then
     rm -rf "${_borg_local_folder_tmp}"
     install -b -m 0700 -o "${_zimbra_user}" -g "${_zimbra_group}" -d "${_borg_local_folder_tmp}"
   fi

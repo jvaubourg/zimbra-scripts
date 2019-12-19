@@ -181,6 +181,7 @@ _server_hostname=
 _certbot_path=/etc/letsencrypt/live/
 _certbot_keysize=4096
 _max_number_of_days_before_expiration=27
+_debug_ask_stopping=yes
 
 # Traps
 trap 'trap_zimbra-exec_exit $LINENO' EXIT TERM ERR
@@ -220,25 +221,34 @@ if letsencryptHasToBeRenewed; then
   log_info "Zimbra has to get a fresh Let's Encrypt certificate"
   log_info "Getting Zimbra main domain and admin email address"
 
-  log_info "Stopping Zimbra"
-  zimbraStop
+  if [ "${_debug_mode}" -gt 0 ]; then
+    _debug_ask_stopping=no
+    read -p "Stop Zimbra (default: N)? " _debug_ask_stopping
+  fi
 
-  _zimbra_main_domain=$(zimbraGetMainDomain || true)
-  _server_hostname=$(hostname --fqdn || true)
-  log_debug "Zimbra main domain is <${_zimbra_main_domain}>"
-  log_debug "Server hostname is <${_server_hostname}>"
+  if [[ "${_debug_ask_stopping^^}" =~ ^Y(ES)?$ ]]; then
+    log_info "Stopping Zimbra"
+    zimbraStop
 
-  _zimbra_admin_account=$(zimbraGetAdminAccounts | head -n 1 || true)
-  log_debug "Zimbra admin email address is <${_zimbra_install_domain}>"
+    _zimbra_main_domain=$(zimbraGetMainDomain || true)
+    _server_hostname=$(hostname --fqdn || true)
+    log_debug "Zimbra main domain is <${_zimbra_main_domain}>"
+    log_debug "Server hostname is <${_server_hostname}>"
 
-  log_info "Downloading of a new Let's Encrypt certificate"
-  letsencryptRenew
+    _zimbra_admin_account=$(zimbraGetAdminAccounts | head -n 1 || true)
+    log_debug "Zimbra admin email address is <${_zimbra_install_domain}>"
 
-  log_debug "Create a new CA bundle"
-  letsencryptCreateCaBundle
+    log_info "Downloading of a new Let's Encrypt certificate"
+    letsencryptRenew
 
-  log_info "Deploying the new Let's Encrypt certificate into Zimbra"
-  zimbraLetsencryptDeploy
+    log_debug "Create a new CA bundle"
+    letsencryptCreateCaBundle
+
+    log_info "Deploying the new Let's Encrypt certificate into Zimbra"
+    zimbraLetsencryptDeploy
+  else
+    log_debug "Canceled"
+  fi
 else
   log_info "Zimbra doesn't have to get a fresh Let's Encrypt certificate"
 fi

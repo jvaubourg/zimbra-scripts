@@ -196,13 +196,13 @@ function cleanFailedProcess() {
 # Remove and create again the Borg TMP folder where the backups are done before
 # sending data to the server
 function emptyTmpFolder() {
-  local ask_remove=y
+  local ask_remove=yes
 
   if [ "${_debug_mode}" -gt 0 ]; then
     read -p "Empty the Borg TMP folder <${_borg_local_folder_tmp}> (default: Y)? " ask_remove
   fi
 
-  if [ -z "${ask_remove}" -o "${ask_remove}" = Y -o "${ask_remove}" = y ]; then
+  if [ -z "${ask_remove}" ] || [[ "${ask_remove^^}" =~ ^Y(ES)?$ ]]; then
     rm -rf "${_borg_local_folder_tmp}"
     install -b -m 0700 -o "${_zimbra_user}" -g "${_zimbra_group}" -d "${_borg_local_folder_tmp}"
   fi

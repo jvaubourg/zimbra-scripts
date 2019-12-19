@@ -149,13 +149,13 @@ function cleanFailedProcess() {
   log_debug "Cleaning after fail"
 
   if [ -n "${_backuping_account}" -a -d "${_backups_path}/accounts/${_backuping_account}" ]; then
-    local ask_remove=y
+    local ask_remove=yes
 
     if [ "${_debug_mode}" -gt 0 ]; then
       read -p "Remove failed account backup <${_backups_path}/accounts/${_backuping_account}> (default: Y)? " ask_remove
     fi
 
-    if [ -z "${ask_remove}" -o "${ask_remove}" = Y -o "${ask_remove}" = y ]; then
+    if [ -z "${ask_remove}" ] || [[ "${ask_remove^^}" =~ ^Y(ES)?$ ]]; then
       if rm -rf "${_backups_path}/accounts/${_backuping_account}"; then
         log_info "${email}: Failed backup has been removed"
       fi

@@ -135,13 +135,13 @@ function cleanFailedProcess() {
   log_debug "Cleaning after fail"
 
   if [ -n "${_restoring_account}" ]; then
-    local ask_remove=y
+    local ask_remove=yes
 
     if [ "${_debug_mode}" -gt 0 ]; then
       read -p "Remove incomplete account <${_restoring_account}> (default: Y)? " ask_remove
     fi
 
-    if [ -z "${ask_remove}" -o "${ask_remove}" = Y -o "${ask_remove}" = y ]; then
+    if [ -z "${ask_remove}" ] || [[ "${ask_remove^^}" =~ ^Y(ES)?$ ]]; then
       if zimbraRemoveAccount "${_restoring_account}"; then
         log_info "${_restoring_account}: Incomplete account has been removed"
       fi
