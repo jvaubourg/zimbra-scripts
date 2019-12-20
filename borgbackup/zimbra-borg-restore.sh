@@ -394,7 +394,7 @@ function borgRestoreAccount() {
 ### GLOBAL VARIABLES ###
 ########################
 
-_log_id=BORG-RESTORE
+_log_id=ZIMBRA-BORG-RESTORE
 _borg_debug_mode=--warning # The default one
 _borg_local_folder_main=
 _borg_local_folder_tmp=
