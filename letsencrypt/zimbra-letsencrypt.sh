@@ -21,6 +21,16 @@ function exit_usage() {
 
   cat <<USAGE
 
+  LETSENCRYPT
+
+    -m email
+      Email address to pass to the Let's Encrypt service
+      [Default] First Zimbra admin account
+
+    -k keysize
+      RSA key size for generated certificates
+      [Default] ${_certbot_keysize}
+
   ENVIRONMENT
 
     -p path
@@ -131,7 +141,7 @@ function letsencryptRenew() {
   local newcerts_path="${_certbot_path}/${_server_hostname}"
 
   # Renew certificates
-  certbot certonly -n -m "${_zimbra_admin_account}" --rsa-key-size "${_certbot_keysize}" --standalone --agree-tos\
+  certbot certonly -n -m "${_certbot_email}" --rsa-key-size "${_certbot_keysize}" --standalone --agree-tos\
     --preferred-challenges http -d "${_server_hostname}" -d "${_zimbra_main_domain}"
 
   # Copy new certificates aside
@@ -186,12 +196,12 @@ function zimbraLetsencryptDeploy() {
 
 _log_id=Z-LETSENCRYPT
 _zimbra_main_domain=
-_zimbra_admin_account=
 _zimbra_letsencrypt_path=
 _zimbra_stopped=false
 _server_hostname=
 _certbot_path=/etc/letsencrypt/live/
 _certbot_keysize=4096
+_certbot_email=
 _max_number_of_days_before_expiration=27
 _debug_ask_stopping=yes
 
@@ -205,8 +215,10 @@ trap 'exit 1' INT
 ###############
 
 # Some default values are located in zimbra-common
-while getopts 'p:u:g:d:h' opt; do
+while getopts 'm:k:p:u:g:d:h' opt; do
   case "${opt}" in
+    m) _certbot_email="${OPTARG%/}" ;;
+    k) _certbot_keysize="${OPTARG%/}" ;;
     p) _zimbra_main_path="${OPTARG%/}" ;;
     u) _zimbra_user="${OPTARG}" ;;
     g) _zimbra_group="${OPTARG}" ;;
@@ -233,15 +245,18 @@ log_debug "Check expiration date of the current certificate"
 
 if letsencryptHasToBeRenewed; then
   log_info "Zimbra has to get a fresh new Let's Encrypt certificate"
-  log_info "Getting Zimbra main domain and admin email address"
 
+  log_info "Getting Zimbra main domain"
   _zimbra_main_domain=$(zimbraGetMainDomain || true)
   _server_hostname=$(hostname --fqdn || true)
   log_debug "Zimbra main domain is <${_zimbra_main_domain}>"
   log_debug "Server hostname is <${_server_hostname}>"
 
-  _zimbra_admin_account=$(zimbraGetAdminAccounts | head -n 1 || true)
-  log_debug "Zimbra admin email address is <${_zimbra_admin_account}>"
+  if [ -n "${_certbot_email}" ]; then
+    log_info "Getting first Zimbra admin email account"
+    _certbot_email=$(zimbraGetAdminAccounts | head -n 1 || true)
+    log_info "Email address <${_certbot_email}> will be passed to the Let's Encrypt service"
+  fi
 
   if [ "${_debug_mode}" -gt 0 ]; then
     _debug_ask_stopping=no
