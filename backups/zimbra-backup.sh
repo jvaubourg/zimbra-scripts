@@ -164,6 +164,7 @@ function cleanFailedProcess() {
 
     if [ "${_debug_mode}" -gt 0 ]; then
       read -p "Remove failed account backup <${_backups_path}/accounts/${_backuping_account}> (default: Y)? " ask_remove
+      printf '\n'
     fi
 
     if [ -z "${ask_remove}" ] || [[ "${ask_remove^^}" =~ ^Y(ES)?$ ]]; then

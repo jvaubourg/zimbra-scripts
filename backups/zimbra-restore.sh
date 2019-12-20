@@ -150,6 +150,7 @@ function cleanFailedProcess() {
 
     if [ "${_debug_mode}" -gt 0 ]; then
       read -p "Remove incomplete account <${_restoring_account}> (default: Y)? " ask_remove
+      printf '\n'
     fi
 
     if [ -z "${ask_remove}" ] || [[ "${ask_remove^^}" =~ ^Y(ES)?$ ]]; then

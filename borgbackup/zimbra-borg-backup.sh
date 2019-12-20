@@ -211,6 +211,7 @@ function emptyTmpFolder() {
 
   if [ "${_debug_mode}" -gt 0 ]; then
     read -p "Empty the Borg TMP folder <${_borg_local_folder_tmp}> (default: Y)? " ask_remove
+    printf '\n'
   fi
 
   if [ -z "${ask_remove}" ] || [[ "${ask_remove^^}" =~ ^Y(ES)?$ ]]; then

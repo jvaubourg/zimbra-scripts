@@ -246,6 +246,7 @@ if letsencryptHasToBeRenewed; then
   if [ "${_debug_mode}" -gt 0 ]; then
     _debug_ask_stopping=no
     read -p "Stop Zimbra (default: N)? " _debug_ask_stopping
+    printf '\n'
   fi
 
   if [[ "${_debug_ask_stopping^^}" =~ ^Y(ES)?$ ]]; then

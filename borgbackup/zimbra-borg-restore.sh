@@ -178,6 +178,7 @@ function cleanFailedProcess() {
 
   if [ "${_debug_mode}" -gt 0 -a \( "${#_used_system_mountpoints[@]}" -gt 0 -o "${#_used_borg_mountpoints[@]}" -gt 0 \) ]; then
     read -p "Umount system and Borg mountpoints in <${_borg_local_folder_tmp}> (default: Y)? " ask_umount
+    printf '\n'
   fi
 
   if [ -z "${ask_umount}" ] || [[ "${ask_umount^^}" =~ ^Y(ES)?$ ]]; then
