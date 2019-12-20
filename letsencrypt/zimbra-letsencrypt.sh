@@ -184,7 +184,7 @@ function zimbraLetsencryptDeploy() {
 ### GLOBAL VARIABLES ###
 ########################
 
-_log_id=ZIMBRA-LETSENCRYPT
+_log_id=Z-LETSENCRYPT
 _zimbra_main_domain=
 _zimbra_admin_account=
 _zimbra_letsencrypt_path=

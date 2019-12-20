@@ -547,7 +547,7 @@ function backupInfo() {
 ### GLOBAL VARIABLES ###
 ########################
 
-_log_id=ZIMBRA-BACKUP
+_log_id=Z-BACKUP
 _backups_include_accounts=
 _backups_exclude_accounts=
 _backups_lock_accounts=false

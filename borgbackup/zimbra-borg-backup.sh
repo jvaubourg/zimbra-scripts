@@ -355,7 +355,7 @@ function borgBackupAccount() {
 ### GLOBAL VARIABLES ###
 ########################
 
-_log_id=ZIMBRA-BORG-BACKUP
+_log_id=Z-BORG-BACKUP
 _borg_debug_mode=--warning # The default one
 _borg_local_folder_main=
 _borg_local_folder_tmp=
