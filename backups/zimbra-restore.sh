@@ -565,11 +565,12 @@ if [ "${_debug_mode}" -ge 3 ]; then
   set -o xtrace
 fi
 
-if [ -d "${FASTZMPROV_TMP-}" ]; then
+# Fast prompts have been already opened by the parent process
+if [ -d "${FASTZMPROV_TMP-}" -a -d "${FASTZMMAILBOX_TMP-}" ]; then
+  _fastprompts_enabled=true
+  _fastprompt_zmprov_pid=-1
+  _fastprompt_zmmailbox_pid=-1
   _fastprompt_zmprov_tmp="${FASTZMPROV_TMP}"
-fi
-
-if [ -d "${FASTZMMAILBOX_TMP-}" ]; then
   _fastprompt_zmmailbox_tmp="${FASTZMMAILBOX_TMP}"
 fi
 

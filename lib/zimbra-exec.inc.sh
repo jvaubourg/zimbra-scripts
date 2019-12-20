@@ -52,7 +52,7 @@ function initFastPrompts() {
 function closeFastPrompts() {
   _fastprompts_enabled=false
 
-  if [ -n "${_fastprompt_zmprov_pid}" ]; then
+  if [ -n "${_fastprompt_zmprov_pid}" -a "${_fastprompt_zmprov_pid}" -gt 0 ]; then
     log_debug "Close the fast zmprov prompt"
 
     echo exit > "${_fastprompt_zmprov_tmp}/cmd"
@@ -61,7 +61,7 @@ function closeFastPrompts() {
     _fastprompt_zmprov_pid=
   fi
 
-  if [ -n "${_fastprompt_zmmailbox_pid}" ]; then
+  if [ -n "${_fastprompt_zmmailbox_pid}" -a "${_fastprompt_zmmailbox_pid}" -gt 0 ]; then
     log_debug "Close the fast zmmailbox prompt"
 
     echo exit > "${_fastprompt_zmmailbox_tmp}/cmd"
@@ -120,9 +120,9 @@ function zmmailboxSelectMailbox() {
 }
 
 
-##################
-## EXEC COMMAND ##
-##################
+#####################
+## EXEC ZIMBRA CMD ##
+#####################
 
 # Execute a Zimbra command with a shell or with a fast prompt
 function execZimbraCmd() {

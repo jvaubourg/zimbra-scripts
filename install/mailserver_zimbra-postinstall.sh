@@ -19,7 +19,7 @@ pushd /usr/share/
 popd
 
 source /usr/share/zimbra-scripts/lib/zimbra-common.inc.sh
-source /usr/share/zimbra-scripts/lib/zimbra-api.inc.sh
+source /usr/share/zimbra-scripts/lib/zimbra-exec.inc.sh
 
 ln -s /usr/share/zimbra-scripts/backups/zimbra-backup.sh /usr/local/bin/
 ln -s /usr/share/zimbra-scripts/backups/zimbra-restore.sh /usr/local/bin/
