@@ -146,7 +146,7 @@ function letsencryptRenew() {
 
   # Copy new certificates aside
   install -o "${_zimbra_user}" -g "${_zimbra_group}" -d "${_zimbra_letsencrypt_path}"
-  find "${newcerts_path}" -name '*.pem$' -exec cp -a {} "${_zimbra_letsencrypt_path}" \;
+  find "${newcerts_path}" -name '*.pem' -exec cp -a {} "${_zimbra_letsencrypt_path}" \;
 }
 
 # Create a Let's Encrupt CA Bundle that will be accepted by Zimbra
