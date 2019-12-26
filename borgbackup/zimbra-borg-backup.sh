@@ -86,6 +86,20 @@ function exit_usage() {
       This SSH key has to be configured without any passphrase
       [Default] <main_folder>/private_ssh_key (see -c)
 
+  EMAIL REPORTS
+
+    -e from_email:to_email | email | 'nobody'
+      The report of the full backup process will be sent from <from_email> to <to_email>
+      With just an email: will be send from <email> to <email>
+      Use nobody value to disable the report sending
+      [Default] First Zimbra admin account as from and to address
+      [Example] foo@example.com:bar@example.org
+
+    -n
+      Do not send reports for the individual account backups
+      Use nobody value to disable the report sending
+      [Default] First Zimbra admin account
+
   DEFAULT BACKUP OPTIONS
     These options will be used as default when creating a new Backup Config File (along with -t and -k)
 

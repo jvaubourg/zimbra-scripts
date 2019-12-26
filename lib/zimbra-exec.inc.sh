@@ -31,7 +31,7 @@ function initFastPrompts() {
   if [ -z "${_fastprompt_zmprov_pid}" ]; then
     log_debug "Open the fast zmprov prompt"
 
-    _fastprompt_zmprov_tmp=$(mktemp -d zimbra-exec_zmprov.tmp-XXXXXXXXXX)
+    _fastprompt_zmprov_tmp=$(mktemp -d /tmp/zimbra-exec_zmprov.tmp-XXXXXXXXXX)
     mkfifo "${_fastprompt_zmprov_tmp}/cmd"
     exec sudo -u "${_zimbra_user}" env "${path}" stdbuf -o0 -e0 zmprov --ldap < <(tail -f --pid=$$ "${_fastprompt_zmprov_tmp}/cmd" 2> /dev/null || true) &>> "${_fastprompt_zmprov_tmp}/out" &
     _fastprompt_zmprov_pid="${!}"
@@ -41,7 +41,7 @@ function initFastPrompts() {
   if [ -z "${_fastprompt_zmmailbox_pid}" ]; then
     log_debug "Open the fast zmmailbox prompt"
 
-    _fastprompt_zmprov_tmp=$(mktemp -d zimbra-exec_zmmailbox.tmp-XXXXXXXXXX)
+    _fastprompt_zmmailbox_tmp=$(mktemp -d /tmp/zimbra-exec_zmmailbox.tmp-XXXXXXXXXX)
     mkfifo "${_fastprompt_zmmailbox_tmp}/cmd"
     exec sudo -u "${_zimbra_user}" env "${path}" stdbuf -o0 -e0 zmmailbox --zadmin < <(tail -f --pid=$$ "${_fastprompt_zmmailbox_tmp}/cmd" 2> /dev/null || true) &>> "${_fastprompt_zmmailbox_tmp}/out" &
     _fastprompt_zmmailbox_pid="${!}"
