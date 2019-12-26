@@ -252,7 +252,7 @@ if letsencryptHasToBeRenewed; then
   log_debug "Zimbra main domain is <${_zimbra_main_domain}>"
   log_debug "Server hostname is <${_server_hostname}>"
 
-  if [ -n "${_certbot_email}" ]; then
+  if [ -z "${_certbot_email}" ]; then
     log_info "Getting first Zimbra admin email account"
     _certbot_email=$(zimbraGetAdminAccounts | head -n 1 || true)
     log_info "Email address <${_certbot_email}> will be passed to the Let's Encrypt service"
