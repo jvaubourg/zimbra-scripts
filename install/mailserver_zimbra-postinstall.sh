@@ -93,7 +93,7 @@ cmd=(zmprov modifyCos Default zimbraFeatureMailSendLaterEnabled TRUE)
 execZimbraCmd cmd
 
 # Time Zone
-cmd=(zmprov modifyCos Default zimbraPrefTimeZoneId 'Europe/Paris')
+cmd=(zmprov modifyCos Default zimbraPrefTimeZoneId 'Europe/Brussels')
 execZimbraCmd cmd
 
 # Calendar config
