@@ -112,6 +112,10 @@ execZimbraCmd cmd
 cmd=(zmzimletctl disable com_zimbra_ymemoticons)
 execZimbraCmd cmd
 
+# Do not send with Ctrl+Enter
+cmd=(zmprov modifyCos Default zimbraPrefUseSendMsgShortcut FALSE)
+execZimbraCmd cmd
+
 # Do not block encrypted archives
 cmd=(zmprov modifyConfig zimbraVirusBlockEncryptedArchive FALSE)
 execZimbraCmd cmd
