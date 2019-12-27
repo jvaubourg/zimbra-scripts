@@ -67,6 +67,51 @@ execZimbraCmd cmd
 cmd=(zmprov modifyConfig zimbraMtaMaxMessageSize "${max_size}")
 execZimbraCmd cmd
 
+# Default theme
+cmd=(zmprov modifyCos Default zimbraFeatureSkinChangeEnabled FALSE)
+execZimbraCmd cmd
+cmd=(zmprov modifyCos Default zimbraPrefSkin carbon)
+execZimbraCmd cmd
+cmd=(zmprov modifyCos Default zimbraAvailableSkin carbon)
+execZimbraCmd cmd
+
+# Disable GAL
+cmd=(zmprov modifyCos Default zimbraFeatureGalEnabled FALSE)
+execZimbraCmd cmd
+cmd=(zmprov modifyCos Default zimbraFeatureGalAutoCompleteEnabled FALSE)
+execZimbraCmd cmd
+cmd=(zmprov modifyCos Default zimbraFeatureGalSyncEnabled FALSE)
+execZimbraCmd cmd
+cmd=(zmprov modifyCos Default zimbraGalSyncAccountBasedAutoCompleteEnabled FALSE)
+execZimbraCmd cmd
+cmd=(zmprov modifyCos Default zimbraPrefGalAutoCompleteEnabled FALSE)
+execZimbraCmd cmd
+cmd=(zmprov modifyCos Default zimbraPrefGalSearchEnabled FALSE)
+
+# Authorize to send mails later
+cmd=(zmprov modifyCos Default zimbraFeatureMailSendLaterEnabled TRUE)
+execZimbraCmd cmd
+
+# Time Zone
+cmd=(zmprov modifyCos Default zimbraPrefTimeZoneId 'Europe/Paris')
+execZimbraCmd cmd
+
+# Calendar config
+cmd=(zmprov modifyCos Default zimbraPrefCalendarFirstDayOfWeek 1)
+execZimbraCmd cmd
+cmd=(zmprov modifyCos Default zimbraPrefCalendarInitialView week)
+execZimbraCmd cmd
+cmd=(zmprov modifyCos Default zimbraPrefCalendarApptVisibility private)
+execZimbraCmd cmd
+
+# Disable Zimlets
+cmd=(zmprov modifyCos Default zimbraFeatureManageZimlets FALSE)
+execZimbraCmd cmd
+cmd=(zmzimletctl disable com_zimbra_webex)
+execZimbraCmd cmd
+cmd=(zmzimletctl disable com_zimbra_ymemoticons)
+execZimbraCmd cmd
+
 # Do not block encrypted archives
 cmd=(zmprov modifyConfig zimbraVirusBlockEncryptedArchive FALSE)
 execZimbraCmd cmd
