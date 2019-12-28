@@ -26,6 +26,15 @@ ln -s /usr/share/zimbra-scripts/backups/zimbra-restore.sh /usr/local/bin/
 ln -s /usr/share/zimbra-scripts/borgbackup/zimbra-borg-backup.sh /usr/local/bin/
 ln -s /usr/share/zimbra-scripts/borgbackup/zimbra-borg-restore.sh /usr/local/bin/
 
+# Change Service Port
+# https://wiki.zimbra.com/wiki/Steps_to_fix_port_redirection_problem_with_password_change_request_on_webclient
+cmd=(zmprov modifyConfig zimbraPublicServiceHostname "${MAILSERVER_MAIN_DOMAIN}")
+execZimbraCmd cmd
+cmd=(zmprov modifyConfig zimbraPublicServiceProtocol https)
+execZimbraCmd cmd
+cmd=(zmprov modifyConfig zimbraPublicServicePort 443)
+execZimbraCmd cmd
+
 # Enable IPv6
 cmd=(zmprov modifyServer "${MAILSERVER_HOSTNAME}.${MAILSERVER_MAIN_DOMAIN}" zimbraIPMode both)
 execZimbraCmd cmd

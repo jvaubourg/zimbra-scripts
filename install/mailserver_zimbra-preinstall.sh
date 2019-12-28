@@ -93,7 +93,7 @@ systemctl enable yum-cron
 systemctl start yum-cron
 
 # Prepare Zimbra install
-yum -y install sudo libidn gmp perl perl-core nc htop
+yum -y install sudo libidn gmp perl perl-core nc htop net-tools
 yum -y remove postfix
 systemctl stop firewalld
 
