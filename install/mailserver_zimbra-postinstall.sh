@@ -129,6 +129,10 @@ execZimbraCmd cmd
 cmd=(zmprov modifyConfig zimbraVirusBlockEncryptedArchive FALSE)
 execZimbraCmd cmd
 
+# Disable virus notifications to root
+cmd=(zmprov modifyConfig zimbraVirusWarnAdmin FALSE)
+execZimbraCmd cmd
+
 # Zimbra-Borg-Backup scripts (do nothing if not installed)
 service=autorun-zimbra-borg-backup
 
