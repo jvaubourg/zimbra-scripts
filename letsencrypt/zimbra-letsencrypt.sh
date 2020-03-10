@@ -76,7 +76,7 @@ function getDaysBeforeZimbraCertExpiration() {
   local date_expiration=$(cat "${public_cert_path}" | openssl x509 -noout -enddate | cut -d= -f2 || true)
   local epoch_expiration=$(date -d "${date_expiration}" '+%s' || true)
   local epoch_now=$(date '+%s')
-  local remaining_days=$(( (date_cert - date_today) / (24 * 3600) ))
+  local remaining_days=$(( (epoch_expiration - epoch_now) / (24 * 3600) ))
 
   printf '%d' "${remaining_days}"
 }
@@ -278,12 +278,19 @@ if letsencryptHasToBeRenewed; then
     letsencryptCreateCaBundle
 
     log_info "Deploying the new Let's Encrypt certificate into Zimbra"
-    zimbraLetsencryptDeploy
+    zimbraLetsencryptDeploy || true
   else
     log_debug "Canceled"
   fi
+
 else
   log_info "Zimbra doesn't have to get a fresh Let's Encrypt certificate"
+
+  exit 2
+fi
+
+if letsencryptHasToBeRenewed; then
+  exit 1
 fi
 
 showFullProcessDuration
