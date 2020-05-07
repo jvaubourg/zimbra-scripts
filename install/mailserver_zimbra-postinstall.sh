@@ -52,6 +52,9 @@ execZimbraCmd cmd
 cmd=(zmlocalconfig -e zimbra_mtareport_max_hosts=0)
 execZimbraCmd cmd
 
+# Disable Daily Reports
+sed '/zmdailyreport/{s/^/#/}' -i /var/spool/cron/zimbra
+
 # No service start/stop mails
 sed '/Service status change/ { s/^/#/; n; s/^/#/ }' -i "${MAILSERVER_ZIMBRA_PATH}/conf/swatchrc.in"
 
@@ -132,6 +135,9 @@ execZimbraCmd cmd
 # Disable virus notifications to root
 cmd=(zmprov modifyConfig zimbraVirusWarnAdmin FALSE)
 execZimbraCmd cmd
+
+# Restrict max number of recipients for 1 email (TO+CC+BCC)
+cmd=(postconf -e 'smtpd_recipient_limit = 100')
 
 # Zimbra-Borg-Backup scripts (do nothing if not installed)
 service=autorun-zimbra-borg-backup
